@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller の生成物 (再生成可能・サイズ大なので公開しない)
+build/
+dist/
+*.spec
+
+# 配布用zip (Releases に上げるのでリポジトリには含めない)
+*.zip
+
+# テスト・開発用 (配布リポジトリには含めない)
+tests/
+
+# アイコンの元画像 (大きいので除外。assets/icon.ico と icon.png は含める)
+ChatGPT Image*.png
+assets/icon_source.png
+
+# Claude Code のローカル設定 (プロジェクトと無関係)
+.claude/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
