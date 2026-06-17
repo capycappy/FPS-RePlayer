@@ -1,119 +1,127 @@
 # FPS RePlayer  (v1.0.0)
 
-タルコフ等の録画を「コマ単位で前後に行き来 ＋ カーソル追従の虫めがねで部分拡大」して
-検証するための Windows デスクトップ動画プレイヤー。気になった部分を **縦型動画**として
-切り出す機能つき。
+English | [日本語](README.ja.md)
 
-市販プレイヤー（PotPlayer / GOM / VLC / KMPlayer）では「前後両方向のコマ送り」と
-「カーソル追従の部分拡大」を1本で両立できなかったため自作。
+A Windows desktop video player for **frame-by-frame review of FPS gameplay clips**
+(originally built for reviewing *Escape from Tarkov* recordings). Step through footage
+one frame at a time in both directions, magnify any spot with a cursor-following lens,
+and cut out the interesting moment as a **9:16 vertical clip**.
 
-## 必要要件 / セットアップ
+It was made because no off-the-shelf player (PotPlayer / GOM / VLC / KMPlayer) offered
+**both** bidirectional frame stepping **and** a cursor-following magnifier in one app.
 
-- Python 3.12（`winget install Python.Python.3.12` で導入済み）
-- 依存ライブラリ:
+## Download (just run it)
+
+1. Go to the [**Releases**](../../releases) page and download `FPSRePlayer-vX.Y.Z-win64.zip`
+2. Unzip the whole folder
+3. Double-click **`FPSRePlayer.exe`** — no Python or installation needed
+
+> On first launch, Windows SmartScreen may show *"Windows protected your PC"*.
+> Click **More info → Run anyway** (the app is unsigned).
+
+## Features & controls
+
+| Action | How |
+|--------|-----|
+| Play / Pause | `Space` / button / **left-click the player** (ignored if you drag) |
+| Step back (1 frame) | `←` / `A`. Hold the button for continuous stepping |
+| Step forward (1 frame) | `→` / `D`. Hold the button for continuous stepping |
+| Speed up / down | `↑` / `↓`, or the **mouse wheel** (0.1×–16×) |
+| Reset to 1× | **Middle-click** (wheel click) |
+| Magnifier (cursor-following) | **Ctrl + mouse wheel** to zoom; the white frame only appears above 1× (up to 20×) |
+| Seek | Click the timeline (filmstrip / waveform) at the bottom; does not stop playback |
+| Volume | Volume slider in the playback controls (works before opening a file) |
+
+- The magnifier always follows the cursor (no toggle); at 1× nothing is drawn.
+- Current frame number, time, fps, speed and zoom are always shown.
+- Audio follows slow/fast playback (pitch changes with speed).
+- All shortcuts (keyboard **and** mouse) are rebindable in the ⚙ Settings dialog.
+
+### Timeline (also the seek bar)
+
+The bottom shows a **filmstrip of thumbnails** and an **audio waveform**. Both act as the
+seek bar (loud moments such as gunshots show up as waveform spikes).
+
+- Click / drag: seek
+- **Ctrl + click: set In point**
+- **Alt + click: set Out point**
+
+### In / Out (time range)
+
+Set with `I` / `O` (current position) or Ctrl/Alt-click on the timeline. The range is shown
+in yellow and used as the export time range (whole clip if unset). "Clear" removes it.
+
+### Vertical export
+
+1. Click **Export vertical** → a **9:16 frame** appears on the video
+2. Drag inside it to **move**, drag the corners to **resize** (always kept at 9:16)
+3. (Optional) limit the time range with `I` / `O`
+4. Click **Export this range** → choose resolution / audio and save
+
+The frame is 9:16, so the output is a clean vertical video (H.264 + AAC) with no distortion
+or black bars.
+
+## Language
+
+English / Japanese. The initial language follows your Windows locale; you can switch
+between Auto / English / 日本語 in the ⚙ Settings dialog (applied instantly and saved).
+
+## Supported formats
+
+Powered by PyAV (bundled FFmpeg) — MP4 / MKV / MOV / AVI / WebM / FLV / TS / WMV and most
+codecs (H.264, H.265/HEVC, AV1, VP9, etc.). No separate FFmpeg install required.
+
+## Run from source
+
+- Python 3.12
+- Install dependencies:
 
 ```
 python -m pip install -r requirements.txt
 ```
 
-（PyAV に ffmpeg が同梱されているので、別途 ffmpeg のインストールは不要。
-MP4 / MKV / MOV / AVI / WebM など幅広いコーデックに対応。）
+- Launch: double-click `run_player.bat`, or `python src\app.py` (or `python src\app.py "video path"`)
 
-## 起動
+## Build the distributable exe
 
-- `run_player.bat` をダブルクリック、または
-- `python src\app.py`（`python src\app.py "動画パス"` で直接開く）
-
-## ファイルを開く
-
-- 「開く」ボタン（`Ctrl+O`）
-- **動画ファイルをウィンドウにドラッグ&ドロップ**
-- 一度開いたフォルダの場所は記憶され、次回の「開く」「保存」で再利用されます。
-- 操作の一覧は画面下の「❓ 操作」ボタンから。
-
-## 機能と操作
-
-| 機能 | 操作 |
-|------|------|
-| 再生 / 一時停止 | `Space` / ボタン / **プレイヤーを左クリック**（ドラッグ時は無反応）|
-| コマ戻し（1フレーム後退）| `←` / `A`。ボタンは長押しで連続送り |
-| コマ送り（1フレーム前進）| `→` / `D`。ボタンは長押しで連続送り |
-| 倍速・低速 | `↑` 速く / `↓` 遅く、**マウスホイール**でも変更（0.1〜16倍）|
-| 等倍に戻す | **マウスホイールをクリック**（中ボタン）|
-| 虫めがね（カーソル追従拡大・正方形）| **Ctrl + マウスホイール**で拡大/縮小。等倍では枠は非表示、拡大すると白枠が出る（最大20倍）|
-| シーク | 下部タイムライン（サムネイル帯／波形）をクリック。再生中も停止しない |
-| 音量 | 再生コントロール右の音量スライダー |
-
-- 虫めがねは常時カーソル追従（チェックボックス不要）。等倍のときは何も出ず、Ctrl+ホイールで拡大したときだけ白枠付きで表示。
-- 現在フレーム番号・時間・fps・速度・拡大率は画面に常時表示。
-- 音声は倍速・低速にも追従して再生（音程は速度に応じて変化）。
-- カーソルはプレイヤー上では細い十字（＋）。
-
-### タイムライン（シークバー兼用）
-
-下部に**サムネイル帯（動画編集風のフィルムストリップ）**と**音声波形**を表示。
-どちらもシークバーを兼ねる（専用スライダーは廃止）。
-
-- クリック / ドラッグ：その位置へシーク
-- **Ctrl + クリック：In点を設定**
-- **Alt + クリック：Out点を設定**
-- 銃声など大きい音は波形のスパイクで一目で分かる。
-
-### IN / OUT（時間範囲）
-
-`I` / `O`（現在位置）またはタイムラインの Ctrl/Alt クリックで設定。
-タイムライン上に黄色で区間が表示される。書き出しの時間範囲に使われる
-（未設定なら全体）。「範囲クリア」で解除。
-
-### 縦型書き出し
-
-1. 「⬇ 縦型書き出し」を押す → 画面に **9:16 の縦型枠**が出る
-2. 枠の中をドラッグで**移動**、四隅をドラッグで**拡大縮小**（常に 9:16 を維持）
-3. （任意）`I` / `O` で時間範囲を限定
-4. 「✓ この範囲で書き出し」→ 解像度・音声を選んで保存
-
-枠は 9:16 なので歪み・黒帯なしの縦型動画（H.264 + AAC）として出力されます。
-
-## 言語
-
-英語 / 日本語に対応。初回起動は Windows の言語設定を読んで自動選択。
-⚙（設定）ダイアログの「言語」で Auto / English / 日本語 を切り替え可能（即時反映・保存）。
-
-## 配布用 exe の作成
-
-`build_exe.bat` をダブルクリック（または下記）で PyInstaller により exe 化できる。
+Run `build_exe.bat`, or:
 
 ```
 python -m pip install pyinstaller
 python -m PyInstaller --noconfirm --windowed --name "FPSRePlayer" --collect-all av src\app.py
 ```
 
-- 出力: `dist\FPSRePlayer\`（約230MB）。**このフォルダごと**配布する（中の `FPSRePlayer.exe` が本体）。
-- Python のインストールは不要で他の Windows PC でも動く。
-- 配布時は `dist\FPSRePlayer` を zip して渡すのが簡単。
-- `--collect-all av` で PyAV の ffmpeg が同梱されるため、配布先に ffmpeg は不要。
+Output goes to `dist\FPSRePlayer\` — distribute the whole folder (zip it and attach to a
+GitHub Release). `--collect-all av` bundles FFmpeg, so target PCs need nothing installed.
 
-## 構成
+## Project layout
 
 ```
 src/
-  app.py           エントリーポイント
-  main_window.py   UI・操作・再生制御
-  video_widget.py  描画・虫めがね・範囲選択
-  reader.py        PyAV によるフレーム単位の前後シーク
-  exporter.py      crop→scale→pad で縦型書き出し（別スレッド）
-tests/
-  selftest.py      リーダー/書き出しのヘッドレス検証
-  gui_smoke.py     GUI 起動のスモークテスト
+  app.py            entry point
+  main_window.py    UI, controls, playback
+  video_widget.py   rendering, magnifier, crop frame
+  reader.py         PyAV frame-accurate seeking + frame cache
+  player_engine.py  background prefetch decoder (smooth playback)
+  audio_player.py   audio output (QAudioSink), varispeed
+  timeline.py       filmstrip + waveform seek bar
+  exporter.py       crop → scale → pad vertical export (worker thread)
+  shortcuts.py      rebindable key/mouse settings dialog
+  i18n.py           English / Japanese strings
+assets/             app icon
+tools/              icon generation scripts
 ```
 
-## 技術メモ
+## Notes
 
-- フレーム後退はキーフレームへシーク→順方向デコードで実現（フレーム間圧縮に対応）。
-  短いクリップ（〜数分）を主対象とした設計。
-- 再生はバックグラウンドのデコードスレッド（`player_engine.py`）がフレームを
-  先読みしてキューに溜め、UIは音声クロックに合わせて取り出して描画するだけ。
-  デコード時間が表示のカクつきに直結しないようにしている（デコードは
-  マルチスレッド有効）。一時停止中のコマ送り/シークは同期デコードを使用。
-- 書き出しは PyAV のフィルタグラフ（`crop` → `scale(decrease)` → `pad`）。
-  タイムスタンプを 0 始まりに再採番してクリップ先頭から始まるようにしている。
+- Backward stepping seeks to a keyframe and decodes forward (handles inter-frame
+  compression); recently decoded frames are cached so repeated stepping stays smooth.
+  Designed for short clips (a few minutes).
+- Playback uses a background decode thread that prefetches frames into a queue; the UI
+  just pulls and draws in sync with the audio clock, so decode time doesn't cause stutter.
+- Export uses a PyAV filter graph (`crop → scale(decrease) → pad`) with timestamps
+  rebased to 0 so the clip starts at its beginning.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
