@@ -64,6 +64,10 @@ T = {
     "timeline_wave":  {"en": "Analyzing audio...",     "ja": "波形を解析中..."},
     "timeline_thumb": {"en": "Generating thumbnails...", "ja": "サムネイル生成中..."},
     # file dialogs / messages
+    "menu_open":         {"en": "Open file...",      "ja": "ファイルを開く..."},
+    "menu_recent":       {"en": "Recent files",      "ja": "最近のファイル"},
+    "menu_no_recent":    {"en": "(no recent files)", "ja": "(履歴なし)"},
+    "menu_clear_recent": {"en": "Clear recent",      "ja": "履歴をクリア"},
     "open_title":   {"en": "Open video",        "ja": "動画を開く"},
     "filter_video": {"en": "Video files",       "ja": "動画ファイル"},
     "filter_all":   {"en": "All files",         "ja": "すべてのファイル"},
@@ -104,4 +108,6 @@ T = {
     "act_zoom_out":    {"en": "Zoom out",      "ja": "縮小"},
     "act_set_in":      {"en": "Set In point",  "ja": "IN点"},
     "act_set_out":     {"en": "Set Out point", "ja": "OUT点"},
+    "act_file_prev":   {"en": "Previous file", "ja": "前のファイル"},
+    "act_file_next":   {"en": "Next file",     "ja": "次のファイル"},
 }

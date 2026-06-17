@@ -40,6 +40,7 @@ class VideoWidget(QWidget):
     cropChanged = Signal(object)   # (x, y, w, h) ソース座標 or None
     zoomChanged = Signal(float)    # 虫めがね倍率
     gesture = Signal(str)          # マウスジェスチャ名 (LeftClick / WheelUp ...)
+    contextMenuRequested = Signal(object)   # 右クリック位置 (global QPoint)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -242,7 +243,7 @@ class VideoWidget(QWidget):
             event.accept()
             return
         if event.button() == Qt.RightButton:
-            self.gesture.emit("RightClick")
+            self.contextMenuRequested.emit(event.globalPosition().toPoint())
             event.accept()
             return
         if event.button() == Qt.LeftButton:

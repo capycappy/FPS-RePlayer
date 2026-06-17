@@ -1,10 +1,26 @@
-# FPS RePlayer  (v1.0.0)
+# FPS RePlayer  (v1.1.0)
 
 [English](README.md) | 日本語
 
 タルコフ等の録画を「コマ単位で前後に行き来 ＋ カーソル追従の虫めがねで部分拡大」して
 検証するための Windows デスクトップ動画プレイヤー。気になった部分を **縦型動画**として
 切り出す機能つき。
+
+## スクリーンショット
+
+![メイン画面](assets/screenshots/overview.png)
+
+*メイン画面 — 動画＋サムネイル帯＋音声波形タイムライン（銃声など大きい音はスパイクで分かる）。*
+
+**カーソル追従の虫めがね**（Ctrl + マウスホイール）:
+
+| 通常 | 拡大時 |
+|------|--------|
+| ![拡大前](assets/screenshots/magnifier-before.png) | ![拡大後](assets/screenshots/magnifier-after.png) |
+
+![タイムライン](assets/screenshots/timeline-inout.png)
+
+*サムネイル帯＋波形タイムライン。クリックでシーク、Ctrl/AltクリックでIN/OUT範囲（黄色）、赤線が再生位置。*
 
 ## ダウンロード（そのまま使う）
 

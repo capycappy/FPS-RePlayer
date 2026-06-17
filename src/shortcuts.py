@@ -28,10 +28,12 @@ DEFAULT_ACTIONS = [
     ("zoom_out",    "🔍-", "",       "Ctrl+WheelDown"),
     ("set_in",      "IN",  "I",      ""),
     ("set_out",     "OUT", "O",      ""),
+    ("file_prev",   "⏪",  "Ctrl+Left",  ""),
+    ("file_next",   "⏩",  "Ctrl+Right", ""),
 ]
 
 MOUSE_GESTURES = [
-    "", "LeftClick", "MiddleClick", "RightClick",
+    "", "LeftClick", "MiddleClick",
     "WheelUp", "WheelDown",
     "Shift+WheelUp", "Shift+WheelDown",
     "Ctrl+WheelUp", "Ctrl+WheelDown",

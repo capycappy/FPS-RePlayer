@@ -7,11 +7,11 @@ import queue
 
 from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal
 from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen,
-                           QColor, QPainterPath)
+                           QColor, QPainterPath, QAction)
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QDialog, QComboBox, QCheckBox,
-    QDialogButtonBox, QFormLayout, QProgressDialog,
+    QDialogButtonBox, QFormLayout, QProgressDialog, QMenu,
 )
 
 from reader import VideoReader
@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
         self.input_cfg.load(self.settings)
         self._shortcuts = []
         self._mouse_map = {}
+        self.recent = self._load_recent()
 
         self.reader: VideoReader | None = None
         self.audio: AudioPlayer | None = None
@@ -138,6 +139,7 @@ class MainWindow(QMainWindow):
         self.video.cropChanged.connect(self._on_crop)
         self.video.zoomChanged.connect(self._on_zoom)
         self.video.gesture.connect(self._on_gesture)
+        self.video.contextMenuRequested.connect(self._show_context_menu)
 
         self.play_timer = QTimer(self)
         self.play_timer.setTimerType(Qt.PreciseTimer)
@@ -170,11 +172,11 @@ class MainWindow(QMainWindow):
         self.btn_prev = self._icon_button("◁", tr("tip_prev"), self.prev_frame, repeat=True)
         self.btn_play = self._icon_button("▶", tr("tip_play"), self.toggle_play)
         self.btn_next = self._icon_button("▷", tr("tip_next"), self.next_frame, repeat=True)
-        self.btn_slow = self._icon_button("≪", tr("tip_slower"), lambda: self.change_speed(-1))
+        self.btn_slow = self._icon_button("▼", tr("tip_slower"), lambda: self.change_speed(-1))
         self.lbl_speed = QLabel("1.0x")
         self.lbl_speed.setMinimumWidth(48)
         self.lbl_speed.setAlignment(Qt.AlignCenter)
-        self.btn_fast = self._icon_button("≫", tr("tip_faster"), lambda: self.change_speed(1))
+        self.btn_fast = self._icon_button("▲", tr("tip_faster"), lambda: self.change_speed(1))
         self.vol_slider = WedgeVolumeSlider()
         self.vol_slider.setToolTip(tr("tip_volume"))
         self.vol_slider.setValue(int(self.volume * 100))
@@ -273,6 +275,10 @@ class MainWindow(QMainWindow):
             self.set_in()
         elif action == "set_out":
             self.set_out()
+        elif action == "file_prev":
+            self.prev_file()
+        elif action == "file_next":
+            self.next_file()
 
     def _open_shortcuts(self):
         dlg = ShortcutDialog(self, self.input_cfg, self.lang_pref)
@@ -317,15 +323,95 @@ class MainWindow(QMainWindow):
 
     # --- ファイル --------------------------------------------------------
     def open_file(self):
-        start_dir = self.settings.value("last_open_dir", "", str)
+        # フォルダだけ開く (ファイル名欄は空。次ファイルは Ctrl+→ で移動できる)
+        if self.reader and os.path.exists(self.reader.path):
+            start = os.path.dirname(self.reader.path)
+        elif self.recent and os.path.exists(self.recent[0]):
+            start = os.path.dirname(self.recent[0])
+        else:
+            start = self.settings.value("last_open_dir", "", str)
         flt = (f"{tr('filter_video')} "
                "(*.mp4 *.mkv *.mov *.avi *.webm *.flv *.ts *.m4v *.wmv);;"
                f"{tr('filter_all')} (*.*)")
-        path, _ = QFileDialog.getOpenFileName(self, tr("open_title"), start_dir, flt)
+        path, _ = QFileDialog.getOpenFileName(self, tr("open_title"), start, flt)
         if not path:
             return
         self.settings.setValue("last_open_dir", os.path.dirname(path))
         self.load(path)
+
+    # --- 最近のファイル / 右クリックメニュー ----------------------------
+    def _load_recent(self):
+        raw = self.settings.value("recent_files", [])
+        if raw is None:
+            return []
+        if isinstance(raw, str):
+            return [raw]
+        return [str(x) for x in raw]
+
+    def _add_recent(self, path):
+        p = os.path.abspath(path)
+        self.recent = [p] + [x for x in self.recent
+                             if os.path.abspath(x) != p]
+        self.recent = self.recent[:10]
+        self.settings.setValue("recent_files", self.recent)
+        self.settings.sync()   # 即ディスクへ書き込み (起動間で確実に保持)
+
+    def _show_context_menu(self, global_pos):
+        menu = QMenu(self)
+        menu.addAction(tr("menu_open"), self.open_file)
+        if self.reader:
+            files, idx = self._sibling_files()
+            a_prev = menu.addAction(tr("act_file_prev"), self.prev_file)
+            a_prev.setEnabled(idx > 0)
+            a_next = menu.addAction(tr("act_file_next"), self.next_file)
+            a_next.setEnabled(0 <= idx < len(files) - 1)
+        menu.addSeparator()
+        header = menu.addAction(tr("menu_recent"))
+        header.setEnabled(False)
+        existing = [p for p in self.recent if os.path.exists(p)]
+        if existing:
+            for p in existing:
+                act = QAction(os.path.basename(p), menu)
+                act.setToolTip(p)
+                act.triggered.connect(lambda checked=False, path=p: self.load(path))
+                menu.addAction(act)
+            menu.addSeparator()
+            menu.addAction(tr("menu_clear_recent"), self._clear_recent)
+        else:
+            none_act = menu.addAction(tr("menu_no_recent"))
+            none_act.setEnabled(False)
+        menu.exec(global_pos)
+
+    def _clear_recent(self):
+        self.recent = []
+        self.settings.setValue("recent_files", self.recent)
+        self.settings.sync()
+
+    # --- 同フォルダ内の前後ファイルへ移動 -------------------------------
+    def _sibling_files(self):
+        if not self.reader:
+            return [], -1
+        cur = os.path.abspath(self.reader.path)
+        folder = os.path.dirname(cur)
+        try:
+            files = [os.path.join(folder, f) for f in os.listdir(folder)
+                     if f.lower().endswith(self.VIDEO_EXTS)]
+        except OSError:
+            return [], -1
+        files.sort(key=lambda p: os.path.basename(p).lower())
+        idx = next((i for i, p in enumerate(files)
+                    if os.path.abspath(p) == cur), -1)
+        return files, idx
+
+    def next_file(self):
+        files, idx = self._sibling_files()
+        if 0 <= idx < len(files) - 1:
+            self.load(files[idx + 1])
+
+    def prev_file(self):
+        files, idx = self._sibling_files()
+        if idx > 0:
+            self.load(files[idx - 1])
 
     def load(self, path: str):
         self._pause()
@@ -361,6 +447,7 @@ class MainWindow(QMainWindow):
             bar.set_marks(None, None)
         self._set_controls_enabled(True)
         self.setWindowTitle(f"{APP_NAME} — {os.path.basename(path)}")
+        self._add_recent(path)
         self._show_frame(0)
         self._update_labels()
         self._start_timeline_analysis(path)

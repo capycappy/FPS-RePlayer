@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.0.0)
+# FPS RePlayer  (v1.1.0)
 
 English | [日本語](README.ja.md)
 
@@ -6,6 +6,22 @@ A Windows desktop video player for **frame-by-frame review of FPS gameplay clips
 such as *Escape from Tarkov* recordings. Step through footage
 one frame at a time in both directions, magnify any spot with a cursor-following lens,
 and cut out the interesting moment as a **9:16 vertical clip**.
+
+## Screenshots
+
+![Main window](assets/screenshots/overview.png)
+
+*Main window — video with a filmstrip + audio-waveform timeline (loud moments such as gunshots show up as spikes).*
+
+**Cursor-following magnifier** (Ctrl + mouse wheel):
+
+| Normal | Magnified |
+|--------|-----------|
+| ![Before zoom](assets/screenshots/magnifier-before.png) | ![After zoom](assets/screenshots/magnifier-after.png) |
+
+![Timeline](assets/screenshots/timeline-inout.png)
+
+*Filmstrip + waveform timeline. Click to seek; Ctrl-click / Alt-click set the In/Out range (yellow); the red line is the playhead.*
 
 ## Download (just run it)
 
