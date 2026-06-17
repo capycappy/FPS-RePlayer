@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.0.0)
+# FPS RePlayer  (v1.1.0)
 
 [English](README.md) | 日本語
 
@@ -8,6 +8,22 @@
 
 市販プレイヤー（PotPlayer / GOM / VLC / KMPlayer）では「前後両方向のコマ送り」と
 「カーソル追従の部分拡大」を1本で両立できなかったため自作。
+
+## スクリーンショット
+
+![メイン画面](assets/screenshots/overview.png)
+
+*メイン画面 — 動画＋サムネイル帯＋音声波形タイムライン（銃声など大きい音はスパイクで分かる）。*
+
+**カーソル追従の虫めがね**（Ctrl + マウスホイール）:
+
+| 通常 | 拡大時 |
+|------|--------|
+| ![拡大前](assets/screenshots/magnifier-before.png) | ![拡大後](assets/screenshots/magnifier-after.png) |
+
+![タイムライン](assets/screenshots/timeline-inout.png)
+
+*サムネイル帯＋波形タイムライン。クリックでシーク、Ctrl/AltクリックでIN/OUT範囲（黄色）、赤線が再生位置。*
 
 ## ダウンロード（そのまま使う）
 

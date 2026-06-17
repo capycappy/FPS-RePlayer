@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.0.0)
+# FPS RePlayer  (v1.1.0)
 
 English | [日本語](README.ja.md)
 
@@ -9,6 +9,22 @@ and cut out the interesting moment as a **9:16 vertical clip**.
 
 It was made because no off-the-shelf player (PotPlayer / GOM / VLC / KMPlayer) offered
 **both** bidirectional frame stepping **and** a cursor-following magnifier in one app.
+
+## Screenshots
+
+![Main window](assets/screenshots/overview.png)
+
+*Main window — video with a filmstrip + audio-waveform timeline (loud moments such as gunshots show up as spikes).*
+
+**Cursor-following magnifier** (Ctrl + mouse wheel):
+
+| Normal | Magnified |
+|--------|-----------|
+| ![Before zoom](assets/screenshots/magnifier-before.png) | ![After zoom](assets/screenshots/magnifier-after.png) |
+
+![Timeline](assets/screenshots/timeline-inout.png)
+
+*Filmstrip + waveform timeline. Click to seek; Ctrl-click / Alt-click set the In/Out range (yellow); the red line is the playhead.*
 
 ## Download (just run it)
 
