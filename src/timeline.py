@@ -173,6 +173,16 @@ class TimelineBar(QWidget):
         self._loading = False
         self.update()
 
+    def invalidate(self):
+        """キャッシュ画像を破棄して再描画 (リサイズ/最大化時の崩れ対策)。"""
+        self._pixmap = None
+        self.update()
+
+    def resizeEvent(self, event):
+        self._pixmap = None     # 新しいサイズで作り直す (古い画像の引き伸ばし防止)
+        super().resizeEvent(event)
+        self.update()
+
     # --- 座標 -----------------------------------------------------------
     def _x_of_frame(self, frame: int) -> float:
         return (frame / self._maxframe) * self.width() if self._maxframe else 0.0

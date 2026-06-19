@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.1.0)
+# FPS RePlayer  (v1.1.1)
 
 English | [日本語](README.ja.md)
 

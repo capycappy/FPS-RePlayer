@@ -799,7 +799,15 @@ class MainWindow(QMainWindow):
     def changeEvent(self, event):
         if event.type() == QEvent.ActivationChange and self.isActiveWindow():
             self._activated_ts = time.perf_counter()
+        if event.type() == QEvent.WindowStateChange:
+            # 最大化/復元の直後はレイアウト確定後に再描画して崩れを防ぐ
+            QTimer.singleShot(0, self._repaint_all)
         super().changeEvent(event)
+
+    def _repaint_all(self):
+        self.video.update()
+        self.filmstrip.invalidate()
+        self.waveform.invalidate()
 
     def _first_video_url(self, mime):
         if not mime.hasUrls():
