@@ -232,6 +232,10 @@ class VideoWidget(QWidget):
         self._inside = False
         self.update()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update()   # サイズ変更時は即再描画 (最大化直後の崩れ対策)
+
     def zoom_step(self, delta: float):
         self.zoom = max(1.0, min(20.0, self.zoom + delta))
         self.zoomChanged.emit(self.zoom)
