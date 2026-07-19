@@ -22,6 +22,7 @@ from audio_player import AudioPlayer
 from player_engine import FramePrefetcher
 from timeline import FilmstripBar, WaveformBar, FilmstripWorker, WaveformWorker
 from shortcuts import InputConfig, ShortcutDialog
+from clip_store import ClipStore
 import i18n
 from i18n import tr
 
@@ -117,6 +118,7 @@ class MainWindow(QMainWindow):
         self._shortcuts = []
         self._mouse_map = {}
         self.recent = self._load_recent()
+        self.clip_store = ClipStore()   # 動画ごとの IN/OUT・クリップを永続化
 
         self.reader: VideoReader | None = None
         self.audio: AudioPlayer | None = None
@@ -458,6 +460,7 @@ class MainWindow(QMainWindow):
             bar.clear()
             bar.set_range(maxframe)
             bar.set_marks(None, None)
+        self._restore_clips(path, maxframe)
         self._set_controls_enabled(True)
         self.setWindowTitle(f"{APP_NAME} — {os.path.basename(path)}")
         self._add_recent(path)
@@ -803,11 +806,34 @@ class MainWindow(QMainWindow):
             self._show_frame(frame)
             self._play()
 
+    def _restore_clips(self, path: str, maxframe: int):
+        """保存済みの IN/OUT・クリップがあれば復元 (フレーム範囲にクランプ)。"""
+        saved = self.clip_store.get(path)
+        if not saved:
+            return
+        segs = []
+        for a, b in saved.get("segments", []):
+            a = max(0, min(int(a), maxframe))
+            b = max(0, min(int(b), maxframe))
+            if a < b:
+                segs.append((a, b))
+        self.segments = sorted(segs)
+        iv, ov = saved.get("in"), saved.get("out")
+        self.in_frame = None if iv is None else max(0, min(int(iv), maxframe))
+        self.out_frame = None if ov is None else max(0, min(int(ov), maxframe))
+        if (self.in_frame is not None and self.out_frame is not None
+                and self.in_frame >= self.out_frame):
+            self.out_frame = None
+        self._update_marks()
+
     def _update_marks(self):
         self._update_range_label()
         for bar in (self.filmstrip, self.waveform):
             bar.set_segments(self.segments, self.selected_clip)
             bar.set_marks(self.in_frame, self.out_frame)
+        if self.reader:   # 変更のたびに自動保存 (1動画あたり~100バイト)
+            self.clip_store.set(self.reader.path, self.segments,
+                                self.in_frame, self.out_frame)
 
     # --- 縦型書き出しフロー ---------------------------------------------
     def begin_export(self):
