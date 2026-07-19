@@ -52,7 +52,9 @@ T = {
     "tip_settings": {"en": "Settings",             "ja": "設定"},
     "tip_in":       {"en": "Set In point",         "ja": "IN点を設定"},
     "tip_out":      {"en": "Set Out point",        "ja": "OUT点を設定"},
-    "tip_clear":    {"en": "Clear In/Out",         "ja": "IN/OUTをクリア"},
+    "tip_add_clip": {"en": "Add In–Out as clip (for multi-clip export)",
+                     "ja": "IN–OUT をクリップとして追加（複数区間の書き出し用）"},
+    "tip_clear":    {"en": "Clear In/Out and clips", "ja": "IN/OUTとクリップをクリア"},
     # button texts
     "btn_clear":         {"en": "Clear",              "ja": "クリア"},
     "btn_export":        {"en": "Export vertical",    "ja": "縦型動画書き出し"},
@@ -85,7 +87,10 @@ T = {
     "lbl_crop_range": {"en": "Crop area",         "ja": "切り出し範囲"},
     "lbl_time_range": {"en": "Time range",        "ja": "時間範囲"},
     "lbl_resolution": {"en": "Output resolution", "ja": "出力解像度"},
+    "lbl_clips":      {"en": "Clips",             "ja": "クリップ"},
     "chk_audio":      {"en": "Include audio",     "ja": "音声を含める"},
+    "chk_transition": {"en": "Fade transition between clips",
+                       "ja": "クリップ間にフェードのトランジション"},
     "export_note":    {"en": "Centers the selection and adds black bars to make it vertical.",
                        "ja": "選択範囲を中央に配置し、上下に黒帯を付けて縦型にします。"},
     # settings (shortcut) dialog

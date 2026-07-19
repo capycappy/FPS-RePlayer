@@ -125,6 +125,7 @@ class MainWindow(QMainWindow):
         self.film_thread = None
         self.film_worker = None
         self.cur_index = 0
+        self.segments = []            # 確定済みクリップ [(in, out), ...]
         self.speed_idx = SPEEDS.index(1.0)
         self.playing = False
         self._play_t0 = 0.0
@@ -202,6 +203,8 @@ class MainWindow(QMainWindow):
         self.lbl_zoom.setAlignment(Qt.AlignCenter)
         self.btn_in = self._icon_button("IN", tr("tip_in"), self.set_in)
         self.btn_out = self._icon_button("OUT", tr("tip_out"), self.set_out)
+        self.btn_add_clip = self._icon_button("＋", tr("tip_add_clip"),
+                                              self.add_segment)
         self.btn_clear_range = self._icon_button(tr("btn_clear"), tr("tip_clear"),
                                                  self.clear_range)
         self.lbl_range = QLabel("[ – ]")
@@ -214,7 +217,8 @@ class MainWindow(QMainWindow):
         self.btn_export_cancel.clicked.connect(self.cancel_export)
         self.btn_export_cancel.setVisible(False)
         for w in (self.btn_settings, self.lbl_zoom, self.btn_in,
-                  self.btn_out, self.btn_clear_range, self.lbl_range):
+                  self.btn_out, self.btn_add_clip, self.btn_clear_range,
+                  self.lbl_range):
             row2.addWidget(w)
         row2.addStretch(1)
         for w in (self.btn_export, self.btn_export_ok, self.btn_export_cancel):
@@ -317,7 +321,7 @@ class MainWindow(QMainWindow):
     def _set_controls_enabled(self, on: bool):
         # 音量(vol_slider)はファイル前から操作できるよう常に有効
         for w in (self.btn_prev, self.btn_play, self.btn_next, self.btn_slow,
-                  self.btn_fast, self.btn_in, self.btn_out,
+                  self.btn_fast, self.btn_in, self.btn_out, self.btn_add_clip,
                   self.btn_clear_range, self.btn_export):
             w.setEnabled(on)
 
@@ -439,6 +443,7 @@ class MainWindow(QMainWindow):
         self.cur_index = 0
         self.in_frame = None
         self.out_frame = None
+        self.segments = []
         self.video.clear_crop()
         maxframe = self.reader.total_frames - 1
         for bar in (self.filmstrip, self.waveform):
@@ -528,7 +533,10 @@ class MainWindow(QMainWindow):
     def _update_range_label(self):
         a = "·" if self.in_frame is None else str(self.in_frame)
         b = "·" if self.out_frame is None else str(self.out_frame)
-        self.lbl_range.setText(f"[ {a} – {b} ]")
+        text = f"[ {a} – {b} ]"
+        if self.segments:
+            text += f"  ×{len(self.segments)}"
+        self.lbl_range.setText(text)
 
     # --- 再生 ------------------------------------------------------------
     def _on_video_click(self):
@@ -701,15 +709,26 @@ class MainWindow(QMainWindow):
             self.in_frame = None
         self._update_marks()
 
-    def clear_range(self):
+    def add_segment(self):
+        """現在の IN–OUT をクリップとして確定し、次の区間選択へ。"""
+        if self.in_frame is None or self.out_frame is None:
+            return
+        self.segments.append((self.in_frame, self.out_frame))
         self.in_frame = None
         self.out_frame = None
         self._update_marks()
 
+    def clear_range(self):
+        self.in_frame = None
+        self.out_frame = None
+        self.segments = []
+        self._update_marks()
+
     def _update_marks(self):
         self._update_range_label()
-        self.filmstrip.set_marks(self.in_frame, self.out_frame)
-        self.waveform.set_marks(self.in_frame, self.out_frame)
+        for bar in (self.filmstrip, self.waveform):
+            bar.set_segments(self.segments)
+            bar.set_marks(self.in_frame, self.out_frame)
 
     # --- 縦型書き出しフロー ---------------------------------------------
     def begin_export(self):
@@ -731,22 +750,33 @@ class MainWindow(QMainWindow):
         self.btn_export_ok.setVisible(False)
         self.btn_export_cancel.setVisible(False)
 
+    def _export_segments(self):
+        """書き出し対象のクリップ一覧 (フレーム番号ペア, 時系列順)。"""
+        segs = list(self.segments)
+        if self.in_frame is not None and self.out_frame is not None:
+            segs.append((self.in_frame, self.out_frame))   # 未確定のIN–OUTも含める
+        if not segs:
+            segs = [(0, self.reader.total_frames - 1)]     # 未指定なら全体
+        return sorted(segs)
+
     def confirm_export(self):
         if not self.reader or not self.video.crop_rect:
             return
-        a = self.in_frame if self.in_frame is not None else 0
-        b = self.out_frame if self.out_frame is not None else self.reader.total_frames - 1
+        segs = self._export_segments()
         x, y, w, h = self.video.crop_rect
         crop_text = f"{w} x {h}  ({x},{y})"
-        range_text = (f"{a} – {b}  "
-                      f"({fmt_time(self.reader.index_to_time(a))} – "
-                      f"{fmt_time(self.reader.index_to_time(b))})")
+        total_frames = sum(b - a + 1 for a, b in segs)
+        range_text = (f"{len(segs)} : "
+                      + ", ".join(f"{a}–{b}" for a, b in segs[:4])
+                      + ("…" if len(segs) > 4 else "")
+                      + f"  ({fmt_time(total_frames / self.reader.fps)})")
 
-        dlg = ExportDialog(self, crop_text, range_text)
+        dlg = ExportDialog(self, crop_text, range_text, len(segs) > 1)
         if dlg.exec() != QDialog.Accepted:
             return
         out_w, out_h = dlg.resolution()
         include_audio = dlg.include_audio() and self.reader.has_audio
+        transition = dlg.transition()
 
         default_name = os.path.splitext(os.path.basename(self.reader.path))[0] + "_vertical.mp4"
         save_dir = self.settings.value("last_save_dir", "", str) \
@@ -758,14 +788,14 @@ class MainWindow(QMainWindow):
             return
         self.settings.setValue("last_save_dir", os.path.dirname(dst))
 
-        t_start = self.reader.index_to_time(a)
-        t_end = self.reader.index_to_time(b + 1)
+        time_segs = [(self.reader.index_to_time(a),
+                      self.reader.index_to_time(b + 1)) for a, b in segs]
         self.video.end_crop()
         self._exit_export_mode()
-        self._run_export(dst, self.video.crop_rect, t_start, t_end,
-                         out_w, out_h, include_audio)
+        self._run_export(dst, self.video.crop_rect, time_segs,
+                         out_w, out_h, include_audio, transition)
 
-    def _run_export(self, dst, crop, t_start, t_end, out_w, out_h, audio):
+    def _run_export(self, dst, crop, time_segs, out_w, out_h, audio, transition):
         self.progress = QProgressDialog(tr("progress_label"), tr("cancel"), 0, 100, self)
         self.progress.setWindowTitle(tr("progress_title"))
         self.progress.setWindowModality(Qt.WindowModal)
@@ -773,8 +803,8 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
 
         self.thread = QThread()
-        self.worker = ExportWorker(self.reader.path, dst, crop, t_start, t_end,
-                                   out_w, out_h, audio)
+        self.worker = ExportWorker(self.reader.path, dst, crop, time_segs,
+                                   out_w, out_h, audio, transition)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
         self.worker.progress.connect(
@@ -847,14 +877,15 @@ class ExportDialog(QDialog):
                ("720 x 1280 (HD)", 720, 1280),
                ("1440 x 2560 (QHD)", 1440, 2560)]
 
-    def __init__(self, parent=None, crop_text="", range_text=""):
+    def __init__(self, parent=None, crop_text="", range_text="",
+                 multi_clip=False):
         super().__init__(parent)
         self.setWindowTitle(tr("export_settings_title"))
         form = QFormLayout(self)
         if crop_text:
             form.addRow(tr("lbl_crop_range"), QLabel(crop_text))
         if range_text:
-            form.addRow(tr("lbl_time_range"), QLabel(range_text))
+            form.addRow(tr("lbl_clips"), QLabel(range_text))
         self.combo = QComboBox()
         for name, _, _ in self.PRESETS:
             self.combo.addItem(name)
@@ -862,6 +893,10 @@ class ExportDialog(QDialog):
         self.chk_audio = QCheckBox(tr("chk_audio"))
         self.chk_audio.setChecked(True)
         form.addRow("", self.chk_audio)
+        self.chk_transition = QCheckBox(tr("chk_transition"))
+        self.chk_transition.setChecked(False)
+        self.chk_transition.setEnabled(multi_clip)   # クリップ2個以上のときのみ
+        form.addRow("", self.chk_transition)
         note = QLabel(tr("export_note"))
         note.setWordWrap(True)
         form.addRow(note)
@@ -876,3 +911,6 @@ class ExportDialog(QDialog):
 
     def include_audio(self):
         return self.chk_audio.isChecked()
+
+    def transition(self):
+        return self.chk_transition.isChecked() and self.chk_transition.isEnabled()
