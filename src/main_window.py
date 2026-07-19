@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import time
 import queue
 
@@ -125,7 +126,8 @@ class MainWindow(QMainWindow):
         self.film_thread = None
         self.film_worker = None
         self.cur_index = 0
-        self.segments = []            # 確定済みクリップ [(in, out), ...]
+        self.segments = []            # 確定済みクリップ [(in, out), ...] 常に時系列順
+        self.selected_clip = None     # 選択中クリップの index (IN/OUTで修正対象)
         self.speed_idx = SPEEDS.index(1.0)
         self.playing = False
         self._play_t0 = 0.0
@@ -205,6 +207,10 @@ class MainWindow(QMainWindow):
         self.btn_out = self._icon_button("OUT", tr("tip_out"), self.set_out)
         self.btn_add_clip = self._icon_button("＋", tr("tip_add_clip"),
                                               self.add_segment)
+        self.btn_clip_prev = self._icon_button("⏮", tr("tip_clip_prev"),
+                                               self.prev_clip)
+        self.btn_clip_next = self._icon_button("⏭", tr("tip_clip_next"),
+                                               self.next_clip)
         self.btn_clear_range = self._icon_button(tr("btn_clear"), tr("tip_clear"),
                                                  self.clear_range)
         self.lbl_range = QLabel("[ – ]")
@@ -217,8 +223,8 @@ class MainWindow(QMainWindow):
         self.btn_export_cancel.clicked.connect(self.cancel_export)
         self.btn_export_cancel.setVisible(False)
         for w in (self.btn_settings, self.lbl_zoom, self.btn_in,
-                  self.btn_out, self.btn_add_clip, self.btn_clear_range,
-                  self.lbl_range):
+                  self.btn_out, self.btn_add_clip, self.btn_clip_prev,
+                  self.btn_clip_next, self.btn_clear_range, self.lbl_range):
             row2.addWidget(w)
         row2.addStretch(1)
         for w in (self.btn_export, self.btn_export_ok, self.btn_export_cancel):
@@ -322,6 +328,7 @@ class MainWindow(QMainWindow):
         # 音量(vol_slider)はファイル前から操作できるよう常に有効
         for w in (self.btn_prev, self.btn_play, self.btn_next, self.btn_slow,
                   self.btn_fast, self.btn_in, self.btn_out, self.btn_add_clip,
+                  self.btn_clip_prev, self.btn_clip_next,
                   self.btn_clear_range, self.btn_export):
             w.setEnabled(on)
 
@@ -444,6 +451,7 @@ class MainWindow(QMainWindow):
         self.in_frame = None
         self.out_frame = None
         self.segments = []
+        self.selected_clip = None
         self.video.clear_crop()
         maxframe = self.reader.total_frames - 1
         for bar in (self.filmstrip, self.waveform):
@@ -531,6 +539,11 @@ class MainWindow(QMainWindow):
         self._update_range_label()
 
     def _update_range_label(self):
+        if self.selected_clip is not None:
+            a, b = self.segments[self.selected_clip]
+            self.lbl_range.setText(
+                f"#{self.selected_clip + 1}/{len(self.segments)} [ {a} – {b} ]")
+            return
         a = "·" if self.in_frame is None else str(self.in_frame)
         b = "·" if self.out_frame is None else str(self.out_frame)
         text = f"[ {a} – {b} ]"
@@ -696,7 +709,11 @@ class MainWindow(QMainWindow):
     def set_in_at(self, frame: int):
         if not self.reader:
             return
-        self.in_frame = max(0, min(frame, self.reader.total_frames - 1))
+        frame = max(0, min(frame, self.reader.total_frames - 1))
+        if self.selected_clip is not None:       # 選択中クリップの IN を修正
+            self._edit_clip(in_=frame)
+            return
+        self.in_frame = frame
         if self.out_frame is not None and self.out_frame <= self.in_frame:
             self.out_frame = None
         self._update_marks()
@@ -704,16 +721,26 @@ class MainWindow(QMainWindow):
     def set_out_at(self, frame: int):
         if not self.reader:
             return
-        self.out_frame = max(0, min(frame, self.reader.total_frames - 1))
+        frame = max(0, min(frame, self.reader.total_frames - 1))
+        if self.selected_clip is not None:       # 選択中クリップの OUT を修正
+            self._edit_clip(out=frame)
+            return
+        self.out_frame = frame
         if self.in_frame is not None and self.in_frame >= self.out_frame:
             self.in_frame = None
         self._update_marks()
 
     def add_segment(self):
-        """現在の IN–OUT をクリップとして確定し、次の区間選択へ。"""
+        """現在の IN–OUT をクリップとして確定し、次の区間選択へ。
+        クリップ選択中なら選択を解除するだけ (新規作成モードへ戻る)。"""
+        if self.selected_clip is not None:
+            self.selected_clip = None
+            self._update_marks()
+            return
         if self.in_frame is None or self.out_frame is None:
             return
         self.segments.append((self.in_frame, self.out_frame))
+        self.segments.sort()
         self.in_frame = None
         self.out_frame = None
         self._update_marks()
@@ -722,12 +749,64 @@ class MainWindow(QMainWindow):
         self.in_frame = None
         self.out_frame = None
         self.segments = []
+        self.selected_clip = None
         self._update_marks()
+
+    # --- クリップの選択 / 移動 / 修正 -----------------------------------
+    def prev_clip(self):
+        self._clip_step(-1)
+
+    def next_clip(self):
+        self._clip_step(1)
+
+    def _clip_step(self, delta: int):
+        if not self.reader:
+            return
+        # 未確定の IN–OUT が揃っていれば自動でクリップ化してから移動
+        if (self.selected_clip is None
+                and self.in_frame is not None and self.out_frame is not None):
+            self.segments.append((self.in_frame, self.out_frame))
+            self.segments.sort()
+        self.in_frame = None
+        self.out_frame = None
+        if not self.segments:
+            self._update_marks()
+            return
+        n = len(self.segments)
+        if self.selected_clip is None:
+            idx = 0 if delta > 0 else n - 1
+        else:
+            idx = (self.selected_clip + delta) % n
+        self.selected_clip = idx
+        self._update_marks()
+        self._jump_play(self.segments[idx][0])   # クリップの IN へ移動して再生
+
+    def _edit_clip(self, in_=None, out=None):
+        """選択中クリップの IN/OUT を現在フレームで置き換える。"""
+        a, b = self.segments[self.selected_clip]
+        if in_ is not None:
+            a = in_
+        if out is not None:
+            b = out
+        if a == b:
+            return
+        tup = (min(a, b), max(a, b))
+        self.segments[self.selected_clip] = tup
+        self.segments.sort()
+        self.selected_clip = self.segments.index(tup)   # ソート後も選択を追跡
+        self._update_marks()
+
+    def _jump_play(self, frame: int):
+        if self.playing:
+            self._on_seek(frame)
+        else:
+            self._show_frame(frame)
+            self._play()
 
     def _update_marks(self):
         self._update_range_label()
         for bar in (self.filmstrip, self.waveform):
-            bar.set_segments(self.segments)
+            bar.set_segments(self.segments, self.selected_clip)
             bar.set_marks(self.in_frame, self.out_frame)
 
     # --- 縦型書き出しフロー ---------------------------------------------
@@ -818,7 +897,12 @@ class MainWindow(QMainWindow):
         self.thread.wait()
         self.progress.reset()
         if ok:
-            QMessageBox.information(self, tr("done_title"), f"{tr('done_msg')}\n{msg}")
+            # 出力先フォルダを開き、書き出したファイルを選択状態にする
+            try:
+                subprocess.Popen(["explorer", "/select,", os.path.normpath(msg)])
+            except Exception:
+                QMessageBox.information(self, tr("done_title"),
+                                        f"{tr('done_msg')}\n{msg}")
         else:
             QMessageBox.warning(self, tr("fail_title"), msg)
 
