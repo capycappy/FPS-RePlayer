@@ -92,6 +92,7 @@ T = {
     "lbl_time_range": {"en": "Time range",        "ja": "時間範囲"},
     "lbl_resolution": {"en": "Output resolution", "ja": "出力解像度"},
     "lbl_clips":      {"en": "Clips",             "ja": "クリップ"},
+    "lbl_est_size":   {"en": "Estimated size",    "ja": "推定サイズ"},
     "chk_audio":      {"en": "Include audio",     "ja": "音声を含める"},
     "chk_transition": {"en": "Fade transition between clips",
                        "ja": "クリップ間にフェードのトランジション"},

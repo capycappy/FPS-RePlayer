@@ -850,7 +850,8 @@ class MainWindow(QMainWindow):
                       + ("…" if len(segs) > 4 else "")
                       + f"  ({fmt_time(total_frames / self.reader.fps)})")
 
-        dlg = ExportDialog(self, crop_text, range_text, len(segs) > 1)
+        dlg = ExportDialog(self, crop_text, range_text, len(segs) > 1,
+                           duration_sec=total_frames / self.reader.fps)
         if dlg.exec() != QDialog.Accepted:
             return
         out_w, out_h = dlg.resolution()
@@ -886,8 +887,18 @@ class MainWindow(QMainWindow):
                                    out_w, out_h, audio, transition)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
-        self.worker.progress.connect(
-            lambda f: self.progress.setValue(int(f * 100)))
+
+        def on_progress(f):
+            self.progress.setValue(int(f * 100))
+            # 実際に書き込んだサイズ ÷ 進捗率 で最終サイズを着地予測
+            if f >= 0.05:
+                try:
+                    est = os.path.getsize(dst) / f / (1024 * 1024)
+                    self.progress.setLabelText(
+                        f"{tr('progress_label')}  ~{est:.0f} MB")
+                except OSError:
+                    pass
+        self.worker.progress.connect(on_progress)
         self.worker.finished.connect(self._on_export_done)
         self.progress.canceled.connect(self.worker.cancel)
         self.thread.start()
@@ -961,10 +972,14 @@ class ExportDialog(QDialog):
                ("720 x 1280 (HD)", 720, 1280),
                ("1440 x 2560 (QHD)", 1440, 2560)]
 
+    # CRF18 のゲーム映像でよくある映像ビットレートの目安 (Mbps)。内容次第で上下する
+    EST_MBPS = {1080: 11.0, 720: 6.0, 1440: 20.0}
+
     def __init__(self, parent=None, crop_text="", range_text="",
-                 multi_clip=False):
+                 multi_clip=False, duration_sec=0.0):
         super().__init__(parent)
         self.setWindowTitle(tr("export_settings_title"))
+        self._duration = duration_sec
         form = QFormLayout(self)
         if crop_text:
             form.addRow(tr("lbl_crop_range"), QLabel(crop_text))
@@ -974,6 +989,10 @@ class ExportDialog(QDialog):
         for name, _, _ in self.PRESETS:
             self.combo.addItem(name)
         form.addRow(tr("lbl_resolution"), self.combo)
+        self.lbl_est = QLabel("-")
+        form.addRow(tr("lbl_est_size"), self.lbl_est)
+        self.combo.currentIndexChanged.connect(self._update_est)
+        self._update_est()
         self.chk_audio = QCheckBox(tr("chk_audio"))
         self.chk_audio.setChecked(True)
         form.addRow("", self.chk_audio)
@@ -988,6 +1007,15 @@ class ExportDialog(QDialog):
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         form.addRow(bb)
+
+    def _update_est(self):
+        if self._duration <= 0:
+            self.lbl_est.setText("-")
+            return
+        _, w, _ = self.PRESETS[self.combo.currentIndex()]
+        mbps = self.EST_MBPS.get(w, 10.0) + 0.15   # 映像 + AAC音声
+        mid = mbps * self._duration / 8            # MB
+        self.lbl_est.setText(f"~{mid * 0.5:.0f} – {mid * 1.5:.0f} MB")
 
     def resolution(self):
         _, w, h = self.PRESETS[self.combo.currentIndex()]
