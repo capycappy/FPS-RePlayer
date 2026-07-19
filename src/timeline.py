@@ -146,6 +146,7 @@ class TimelineBar(QWidget):
         self._in = None
         self._out = None
         self._segments = []      # 確定済みクリップ [(a, b), ...]
+        self._selected = None    # 選択中クリップの index
         self._pixmap = None
         self._loading = False
 
@@ -164,8 +165,9 @@ class TimelineBar(QWidget):
         self._out = b
         self.update()
 
-    def set_segments(self, segments):
+    def set_segments(self, segments, selected=None):
         self._segments = list(segments)
+        self._selected = selected
         self.update()
 
     def set_loading(self, on: bool):
@@ -216,17 +218,19 @@ class TimelineBar(QWidget):
         p.drawPixmap(0, 0, self._pixmap)
         h = self.height()
 
-        # 確定済みクリップ (黄色の帯 + 番号)。時系列順に番号を振る
-        for num, (a, b) in enumerate(sorted(self._segments), start=1):
+        # 確定済みクリップ (黄色の帯 + 番号)。選択中は白枠で強調
+        for i, (a, b) in enumerate(self._segments):
             xa = self._x_of_frame(a)
             xb = self._x_of_frame(b)
+            sel = (i == self._selected)
             p.fillRect(int(xa), 0, max(2, int(xb - xa)), h,
-                       QColor(255, 210, 0, 70))
-            p.setPen(QPen(QColor(255, 210, 0, 200), 1))
+                       QColor(255, 210, 0, 110 if sel else 70))
+            p.setPen(QPen(QColor("#ffffff") if sel
+                          else QColor(255, 210, 0, 200), 2 if sel else 1))
             p.drawRect(int(xa), 0, max(2, int(xb - xa)), h - 1)
             if (xb - xa) > 14 and h >= 30:
-                p.setPen(QColor("#ffd200"))
-                p.drawText(int(xa) + 3, 13, str(num))
+                p.setPen(QColor("#ffffff") if sel else QColor("#ffd200"))
+                p.drawText(int(xa) + 4, 13, str(i + 1))
 
         # 編集中の IN/OUT 区間の塗り (両方セット時)
         if self._in is not None and self._out is not None and self._out > self._in:
