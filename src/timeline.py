@@ -147,6 +147,7 @@ class TimelineBar(QWidget):
         self._out = None
         self._segments = []      # 確定済みクリップ [(a, b), ...]
         self._selected = None    # 選択中クリップの index
+        self._drag_marker = None  # ドラッグ中のマーカー ("in" | "out")
         self._pixmap = None
         self._loading = False
 
@@ -257,11 +258,40 @@ class TimelineBar(QWidget):
         return int(max(1, min(self.width() - 1, x)))
 
     # --- マウス ---------------------------------------------------------
+    GRAB = 6   # IN/OUT 縦線の掴み判定 (px)
+
+    def _marker_positions(self):
+        """ドラッグ可能な IN/OUT マーカーの位置。クリップ選択中はその境界。"""
+        if self._selected is not None and 0 <= self._selected < len(self._segments):
+            a, b = self._segments[self._selected]
+            return {"in": a, "out": b}
+        m = {}
+        if self._in is not None:
+            m["in"] = self._in
+        if self._out is not None:
+            m["out"] = self._out
+        return m
+
+    def _hit_marker(self, x: float):
+        best, bestd = None, self.GRAB + 1
+        for name, f in self._marker_positions().items():
+            d = abs(self._x_of_frame(f) - x)
+            if d <= self.GRAB and d < bestd:
+                best, bestd = name, d
+        return best
+
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton:
             return
-        f = self._frame_at(event.position().x())
+        x = event.position().x()
         mods = event.modifiers()
+        if not (mods & (Qt.ControlModifier | Qt.AltModifier)):
+            marker = self._hit_marker(x)
+            if marker:                       # IN/OUT 縦線を掴んだ → ドラッグ開始
+                self._drag_marker = marker
+                event.accept()
+                return
+        f = self._frame_at(x)
         if mods & Qt.ControlModifier:
             self.inRequested.emit(f)
         elif mods & Qt.AltModifier:
@@ -271,10 +301,33 @@ class TimelineBar(QWidget):
         event.accept()
 
     def mouseMoveEvent(self, event):
+        if self._drag_marker and (event.buttons() & Qt.LeftButton):
+            f = self._frame_at(event.position().x())
+            pos = self._marker_positions()
+            if self._drag_marker == "in":    # OUT を追い越さないようクランプ
+                other = pos.get("out")
+                if other is not None:
+                    f = min(f, other - 1)
+                self.inRequested.emit(max(0, f))
+            else:
+                other = pos.get("in")
+                if other is not None:
+                    f = max(f, other + 1)
+                self.outRequested.emit(min(f, self._maxframe))
+            event.accept()
+            return
+        if not event.buttons():              # ホバー: 線の上では左右矢印カーソル
+            self.setCursor(Qt.SizeHorCursor
+                           if self._hit_marker(event.position().x())
+                           else Qt.IBeamCursor)
         if (event.buttons() & Qt.LeftButton) and not (
                 event.modifiers() & (Qt.ControlModifier | Qt.AltModifier)):
             self.seekRequested.emit(self._frame_at(event.position().x()))
             event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_marker = None
+        super().mouseReleaseEvent(event)
 
 
 class WaveformBar(TimelineBar):
