@@ -140,6 +140,7 @@ class TimelineBar(QWidget):
         super().__init__(parent)
         self.setFixedHeight(height)
         self.setCursor(Qt.IBeamCursor)   # タイムライン上は I ビーム (位置を合わせやすい)
+        self.setMouseTracking(True)      # ホバーで IN/OUT 線の掴みカーソルを出すため
         self.setStyleSheet("background:#0c0c0e;")
         self._frame = 0
         self._maxframe = 1
@@ -289,6 +290,7 @@ class TimelineBar(QWidget):
             marker = self._hit_marker(x)
             if marker:                       # IN/OUT 縦線を掴んだ → ドラッグ開始
                 self._drag_marker = marker
+                self.setCursor(Qt.SizeHorCursor)
                 event.accept()
                 return
         f = self._frame_at(x)
@@ -327,7 +329,15 @@ class TimelineBar(QWidget):
 
     def mouseReleaseEvent(self, event):
         self._drag_marker = None
+        self.setCursor(Qt.SizeHorCursor
+                       if self._hit_marker(event.position().x())
+                       else Qt.IBeamCursor)
         super().mouseReleaseEvent(event)
+
+    def leaveEvent(self, event):
+        if self._drag_marker is None:
+            self.setCursor(Qt.IBeamCursor)
+        super().leaveEvent(event)
 
 
 class WaveformBar(TimelineBar):
