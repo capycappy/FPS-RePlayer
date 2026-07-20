@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.1.1)
+# FPS RePlayer  (v1.2.0)
 
 English | [日本語](README.ja.md)
 
@@ -64,20 +64,30 @@ seek bar (loud moments such as gunshots show up as waveform spikes).
 - **Ctrl + click: set In point**
 - **Alt + click: set Out point**
 
-### In / Out (time range)
+### In / Out & clips (multiple ranges)
 
-Set with `I` / `O` (current position) or Ctrl/Alt-click on the timeline. The range is shown
-in yellow and used as the export time range (whole clip if unset). "Clear" removes it.
+Set In/Out with `I` / `O` (current position) or Ctrl/Alt-click on the timeline.
+Press **＋** to commit the current In–Out as a **clip**, then select the next range —
+clips appear as numbered yellow bands on the timeline.
+
+- **⏮ / ⏭** : jump to the previous/next clip's In point and play it
+- While a clip is selected, `I` / `O` (or Ctrl/Alt-click) **edit that clip's
+  boundaries**; press **＋** to deselect and go back to creating new clips
+- In/Out and clips are **saved per video** automatically (~100 bytes each) and
+  restored when you reopen the same file
+- "Clear" removes the current In/Out and all clips
 
 ### Vertical export
 
 1. Click **Export vertical** → a **9:16 frame** appears on the video
 2. Drag inside it to **move**, drag the corners to **resize** (always kept at 9:16)
-3. (Optional) limit the time range with `I` / `O`
-4. Click **Export this range** → choose resolution / audio and save
+3. Click **Export this range** → choose resolution / audio / **fade transition** and save
 
-The frame is 9:16, so the output is a clean vertical video (H.264 + AAC) with no distortion
-or black bars.
+All clips are concatenated in chronological order into one clean vertical video
+(H.264 + AAC, no distortion or black bars). With 2+ clips you can enable a 0.3s
+**fade transition** at clip boundaries. The dialog shows an estimated size range,
+a live size projection is shown while exporting, and Explorer opens on the output
+file when finished.
 
 ## Language
 
