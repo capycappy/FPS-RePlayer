@@ -130,6 +130,8 @@ class MainWindow(QMainWindow):
         self.cur_index = 0
         self.segments = []            # 確定済みクリップ [(in, out), ...] 常に時系列順
         self.selected_clip = None     # 選択中クリップの index (IN/OUTで修正対象)
+        self.preview_segs = None      # プレビュー再生中のクリップ一覧 (None=通常再生)
+        self.preview_idx = 0
         self.speed_idx = SPEEDS.index(1.0)
         self.playing = False
         self._play_t0 = 0.0
@@ -163,13 +165,18 @@ class MainWindow(QMainWindow):
 
         # タイムライン (シークバー兼用): サムネイル帯 + 音声波形
         # クリック=シーク / Ctrl+クリック=IN / Alt+クリック=OUT
+        # 2本のバーは隙間ゼロで密着させ、IN/OUT・再生線が1本につながって見えるように
         self.filmstrip = FilmstripBar()
         self.waveform = WaveformBar()
+        tl_box = QVBoxLayout()
+        tl_box.setSpacing(0)
+        tl_box.setContentsMargins(0, 0, 0, 0)
         for bar in (self.filmstrip, self.waveform):
             bar.seekRequested.connect(self._on_seek)
             bar.inRequested.connect(self.set_in_at)
             bar.outRequested.connect(self.set_out_at)
-            root.addWidget(bar)
+            tl_box.addWidget(bar)
+        root.addLayout(tl_box)
 
         # 1段目: 再生コントロール (アイコンのみ・英語ツールチップ)
         row1 = QHBoxLayout()
@@ -213,6 +220,8 @@ class MainWindow(QMainWindow):
                                                self.prev_clip)
         self.btn_clip_next = self._icon_button("⏭", tr("tip_clip_next"),
                                                self.next_clip)
+        self.btn_preview = self._icon_button("▶#", tr("tip_preview"),
+                                             self.toggle_preview)
         self.btn_clear_range = self._icon_button(tr("btn_clear"), tr("tip_clear"),
                                                  self.clear_range)
         self.lbl_range = QLabel("[ – ]")
@@ -226,7 +235,8 @@ class MainWindow(QMainWindow):
         self.btn_export_cancel.setVisible(False)
         for w in (self.btn_settings, self.lbl_zoom, self.btn_in,
                   self.btn_out, self.btn_add_clip, self.btn_clip_prev,
-                  self.btn_clip_next, self.btn_clear_range, self.lbl_range):
+                  self.btn_clip_next, self.btn_preview,
+                  self.btn_clear_range, self.lbl_range):
             row2.addWidget(w)
         row2.addStretch(1)
         for w in (self.btn_export, self.btn_export_ok, self.btn_export_cancel):
@@ -330,7 +340,7 @@ class MainWindow(QMainWindow):
         # 音量(vol_slider)はファイル前から操作できるよう常に有効
         for w in (self.btn_prev, self.btn_play, self.btn_next, self.btn_slow,
                   self.btn_fast, self.btn_in, self.btn_out, self.btn_add_clip,
-                  self.btn_clip_prev, self.btn_clip_next,
+                  self.btn_clip_prev, self.btn_clip_next, self.btn_preview,
                   self.btn_clear_range, self.btn_export):
             w.setEnabled(on)
 
@@ -596,6 +606,7 @@ class MainWindow(QMainWindow):
         self.play_timer.stop()
         self.btn_play.setText("▶")
         self._pending = None
+        self.preview_segs = None      # 一時停止でプレビューも終了
         if self.producer:
             self.producer.stop()
         if self.audio:
@@ -625,6 +636,18 @@ class MainWindow(QMainWindow):
             elapsed = time.perf_counter() - self._play_t0
             target = self._play_frame0 + round(
                 elapsed * self.reader.fps * SPEEDS[self.speed_idx])
+
+        # プレビュー再生: 現在クリップの終端を超えたら次のクリップへジャンプ
+        if self.preview_segs is not None:
+            end = self.preview_segs[self.preview_idx][1]
+            if target > end:
+                self.preview_idx += 1
+                if self.preview_idx >= len(self.preview_segs):
+                    self._show_frame(end)
+                    self._pause()          # 最後のクリップまで再生し終えた
+                else:
+                    self._preview_jump(self.preview_segs[self.preview_idx][0])
+                return
 
         last = self.reader.total_frames - 1
         if target >= last:
@@ -680,6 +703,7 @@ class MainWindow(QMainWindow):
             self._sync_audio()
 
     def _on_seek(self, value: int):
+        self.preview_segs = None             # 手動シークでプレビューは解除
         self._show_frame(value)
         if self.playing:
             self._pending = None
@@ -687,6 +711,30 @@ class MainWindow(QMainWindow):
                 self.producer.start(value)   # 先読みを新しい位置から
             self._rebase_clock()
             self._sync_audio()   # 再生は止めず、新しい位置から音声を鳴らし直す
+
+    # --- クリップのプレビュー再生 ---------------------------------------
+    def toggle_preview(self):
+        """クリップの範囲だけを番号順に連続再生 (出力プレビュー)。"""
+        if self.preview_segs is not None:    # 実行中なら停止
+            self._pause()
+            return
+        if not self.reader:
+            return
+        segs = self._export_segments()
+        self._pause()
+        self.preview_segs = segs
+        self.preview_idx = 0
+        self._show_frame(segs[0][0])
+        self._play()
+
+    def _preview_jump(self, frame: int):
+        """プレビュー中の次クリップへのジャンプ (プレビュー状態は維持)。"""
+        self._show_frame(frame)
+        self._pending = None
+        if self.producer:
+            self.producer.start(frame)
+        self._rebase_clock()
+        self._sync_audio()
 
     # --- 拡大表示 -------------------------------------------------------
     def _on_zoom(self, z: float):

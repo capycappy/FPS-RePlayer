@@ -58,6 +58,8 @@ T = {
                       "ja": "前のクリップ（INへ移動して再生。IN/OUTでそのクリップを修正）"},
     "tip_clip_next": {"en": "Next clip (jump to its In & play; In/Out then edit it)",
                       "ja": "次のクリップ（INへ移動して再生。IN/OUTでそのクリップを修正）"},
+    "tip_preview":   {"en": "Preview: play only the clips, in order (press again to stop)",
+                      "ja": "プレビュー：クリップの範囲だけを番号順に連続再生（もう一度押すと停止）"},
     "tip_clear":    {"en": "Clear In/Out and clips", "ja": "IN/OUTとクリップをクリア"},
     # button texts
     "btn_clear":         {"en": "Clear",              "ja": "クリア"},
