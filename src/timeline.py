@@ -135,6 +135,7 @@ class TimelineBar(QWidget):
     outRequested = Signal(int)
 
     LOADING_KEY = ""
+    SHOW_SEG_NUMBER = False   # クリップ番号は片方のバーだけに描く
 
     def __init__(self, height: int, parent=None):
         super().__init__(parent)
@@ -220,7 +221,8 @@ class TimelineBar(QWidget):
         p.drawPixmap(0, 0, self._pixmap)
         h = self.height()
 
-        # 確定済みクリップ (黄色の帯 + 番号)。選択中は白枠で強調
+        # 確定済みクリップ (黄色の帯 + 番号)。選択中は白で強調。
+        # 枠は縦線のみ (上下のバーをまたいで1本につながって見えるように)
         for i, (a, b) in enumerate(self._segments):
             xa = self._x_of_frame(a)
             xb = self._x_of_frame(b)
@@ -229,8 +231,9 @@ class TimelineBar(QWidget):
                        QColor(255, 210, 0, 110 if sel else 70))
             p.setPen(QPen(QColor("#ffffff") if sel
                           else QColor(255, 210, 0, 200), 2 if sel else 1))
-            p.drawRect(int(xa), 0, max(2, int(xb - xa)), h - 1)
-            if (xb - xa) > 14 and h >= 30:
+            p.drawLine(int(xa), 0, int(xa), h)
+            p.drawLine(int(xb), 0, int(xb), h)
+            if self.SHOW_SEG_NUMBER and (xb - xa) > 14:
                 p.setPen(QColor("#ffffff") if sel else QColor("#ffd200"))
                 p.drawText(int(xa) + 4, 13, str(i + 1))
 
@@ -380,6 +383,7 @@ class WaveformBar(TimelineBar):
 
 class FilmstripBar(TimelineBar):
     LOADING_KEY = "timeline_thumb"
+    SHOW_SEG_NUMBER = True
 
     def __init__(self, parent=None):
         super().__init__(64, parent)
