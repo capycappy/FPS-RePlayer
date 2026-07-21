@@ -133,6 +133,11 @@ class TimelineBar(QWidget):
     seekRequested = Signal(int)
     inRequested = Signal(int)
     outRequested = Signal(int)
+    addClipRequested = Signal()          # 範囲内の「＋」クリック
+    clearRangeRequested = Signal()       # 浮動IN/OUT範囲内で右クリック
+    removeClipRequested = Signal(int)    # クリップ帯内で右クリック
+    segEdgeMoved = Signal(int, str, int)  # クリップ境界ドラッグ (idx, "in"/"out", frame)
+    dragFinished = Signal()              # クリップ境界ドラッグ終了
 
     LOADING_KEY = ""
     SHOW_SEG_NUMBER = False   # クリップ番号は片方のバーだけに描く
@@ -149,7 +154,9 @@ class TimelineBar(QWidget):
         self._out = None
         self._segments = []      # 確定済みクリップ [(a, b), ...]
         self._selected = None    # 選択中クリップの index
-        self._drag_marker = None  # ドラッグ中のマーカー ("in" | "out")
+        self._drag_marker = None  # ドラッグ中の浮動マーカー ("in" | "out")
+        self._drag_seg = None     # ドラッグ中のクリップ境界 (idx, "in"/"out")
+        self._plus_rect = None    # 浮動IN-OUT範囲内の「＋」ボタン領域
         self._pixmap = None
         self._loading = False
 
@@ -258,6 +265,24 @@ class TimelineBar(QWidget):
         px = self._clamp_x(self._x_of_frame(self._frame))
         p.drawLine(px, 0, px, h)
 
+        # 浮動IN-OUT範囲の中央に「＋」(クリップ追加)。番号を出す側のバーのみ
+        self._plus_rect = None
+        if (self.SHOW_SEG_NUMBER and self._in is not None
+                and self._out is not None and self._out > self._in):
+            xa = self._x_of_frame(self._in)
+            xb = self._x_of_frame(self._out)
+            if xb - xa >= 26:
+                cx, cy, r = int((xa + xb) / 2), h // 2, 9
+                rect = QRect(cx - r, cy - r, 2 * r, 2 * r)
+                self._plus_rect = rect
+                p.setPen(QPen(QColor("#ffd200"), 1))
+                p.setBrush(QColor(15, 15, 18, 210))
+                p.drawRoundedRect(rect, 4, 4)
+                p.setPen(QPen(QColor("#ffd200"), 2))
+                p.drawLine(cx - 5, cy, cx + 5, cy)
+                p.drawLine(cx, cy - 5, cx, cy + 5)
+                p.setBrush(Qt.NoBrush)
+
     def _clamp_x(self, x: float) -> int:
         return int(max(1, min(self.width() - 1, x)))
 
@@ -265,10 +290,7 @@ class TimelineBar(QWidget):
     GRAB = 6   # IN/OUT 縦線の掴み判定 (px)
 
     def _marker_positions(self):
-        """ドラッグ可能な IN/OUT マーカーの位置。クリップ選択中はその境界。"""
-        if self._selected is not None and 0 <= self._selected < len(self._segments):
-            a, b = self._segments[self._selected]
-            return {"in": a, "out": b}
+        """ドラッグ可能な浮動 IN/OUT マーカーの位置。"""
         m = {}
         if self._in is not None:
             m["in"] = self._in
@@ -284,15 +306,49 @@ class TimelineBar(QWidget):
                 best, bestd = name, d
         return best
 
+    def _hit_seg_edge(self, x: float):
+        """全クリップの境界線の掴み判定 (選択不要)。(idx, "in"/"out") or None"""
+        best, bestd = None, self.GRAB + 1
+        for i, (a, b) in enumerate(self._segments):
+            for which, f in (("in", a), ("out", b)):
+                d = abs(self._x_of_frame(f) - x)
+                if d <= self.GRAB and d < bestd:
+                    best, bestd = (i, which), d
+        return best
+
     def mousePressEvent(self, event):
+        x = event.position().x()
+        if event.button() == Qt.RightButton:
+            # 右クリック: 浮動IN-OUT範囲内 → クリア / クリップ帯内 → そのクリップ削除
+            f = self._frame_at(x)
+            if (self._in is not None and self._out is not None
+                    and self._in <= f <= self._out):
+                self.clearRangeRequested.emit()
+            else:
+                for i, (a, b) in enumerate(self._segments):
+                    if a <= f <= b:
+                        self.removeClipRequested.emit(i)
+                        break
+            event.accept()
+            return
         if event.button() != Qt.LeftButton:
             return
-        x = event.position().x()
         mods = event.modifiers()
         if not (mods & (Qt.ControlModifier | Qt.AltModifier)):
+            if (self._plus_rect is not None
+                    and self._plus_rect.contains(event.position().toPoint())):
+                self.addClipRequested.emit()     # 範囲内の「＋」→ クリップ追加
+                event.accept()
+                return
             marker = self._hit_marker(x)
-            if marker:                       # IN/OUT 縦線を掴んだ → ドラッグ開始
+            if marker:                       # 浮動IN/OUT線を掴んだ → ドラッグ開始
                 self._drag_marker = marker
+                self.setCursor(Qt.SizeHorCursor)
+                event.accept()
+                return
+            edge = self._hit_seg_edge(x)
+            if edge:                         # クリップ境界を掴んだ (選択不要)
+                self._drag_seg = edge
                 self.setCursor(Qt.SizeHorCursor)
                 event.accept()
                 return
@@ -306,8 +362,9 @@ class TimelineBar(QWidget):
         event.accept()
 
     def mouseMoveEvent(self, event):
+        x = event.position().x()
         if self._drag_marker and (event.buttons() & Qt.LeftButton):
-            f = self._frame_at(event.position().x())
+            f = self._frame_at(x)
             pos = self._marker_positions()
             if self._drag_marker == "in":    # OUT を追い越さないようクランプ
                 other = pos.get("out")
@@ -321,19 +378,39 @@ class TimelineBar(QWidget):
                 self.outRequested.emit(min(f, self._maxframe))
             event.accept()
             return
-        if not event.buttons():              # ホバー: 線の上では左右矢印カーソル
-            self.setCursor(Qt.SizeHorCursor
-                           if self._hit_marker(event.position().x())
-                           else Qt.IBeamCursor)
+        if self._drag_seg is not None and (event.buttons() & Qt.LeftButton):
+            i, which = self._drag_seg
+            if i < len(self._segments):
+                a, b = self._segments[i]
+                f = self._frame_at(x)
+                if which == "in":            # そのクリップ内でクランプ
+                    f = min(max(0, f), b - 1)
+                else:
+                    f = max(min(f, self._maxframe), a + 1)
+                self.segEdgeMoved.emit(i, which, f)
+            event.accept()
+            return
+        if not event.buttons():              # ホバー: 掴める場所でカーソルを変える
+            if (self._plus_rect is not None
+                    and self._plus_rect.contains(event.position().toPoint())):
+                self.setCursor(Qt.PointingHandCursor)
+            elif self._hit_marker(x) or self._hit_seg_edge(x):
+                self.setCursor(Qt.SizeHorCursor)
+            else:
+                self.setCursor(Qt.IBeamCursor)
         if (event.buttons() & Qt.LeftButton) and not (
                 event.modifiers() & (Qt.ControlModifier | Qt.AltModifier)):
-            self.seekRequested.emit(self._frame_at(event.position().x()))
+            self.seekRequested.emit(self._frame_at(x))
             event.accept()
 
     def mouseReleaseEvent(self, event):
+        if self._drag_seg is not None:
+            self._drag_seg = None
+            self.dragFinished.emit()         # ドラッグ終了 → 並び順を整理してもらう
         self._drag_marker = None
+        x = event.position().x()
         self.setCursor(Qt.SizeHorCursor
-                       if self._hit_marker(event.position().x())
+                       if (self._hit_marker(x) or self._hit_seg_edge(x))
                        else Qt.IBeamCursor)
         super().mouseReleaseEvent(event)
 
