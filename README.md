@@ -71,8 +71,14 @@ Press **＋** to commit the current In–Out as a **clip**, then select the next
 clips appear as numbered yellow bands on the timeline.
 
 - **⏮ / ⏭** : jump to the previous/next clip's In point and play it
+- **▶#** : preview — play only the clips, in order, exactly as they will be exported
+- **Drag any yellow In/Out line** directly on the timeline to adjust it (no
+  selection needed); a **＋** inside the current In–Out range adds it as a clip,
+  and **right-clicking** a range/clip band removes it
 - While a clip is selected, `I` / `O` (or Ctrl/Alt-click) **edit that clip's
   boundaries**; press **＋** to deselect and go back to creating new clips
+- **Clear all** can be undone (the button turns into *Undo*) until a new
+  In/Out is set
 - In/Out and clips are **saved per video** automatically (~100 bytes each) and
   restored when you reopen the same file
 - "Clear" removes the current In/Out and all clips

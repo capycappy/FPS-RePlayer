@@ -132,6 +132,7 @@ class MainWindow(QMainWindow):
         self.selected_clip = None     # 選択中クリップの index (IN/OUTで修正対象)
         self.preview_segs = None      # プレビュー再生中のクリップ一覧 (None=通常再生)
         self.preview_idx = 0
+        self._clear_backup = None     # 全クリアの取り消し用バックアップ
         self.speed_idx = SPEEDS.index(1.0)
         self.playing = False
         self._play_t0 = 0.0
@@ -175,6 +176,11 @@ class MainWindow(QMainWindow):
             bar.seekRequested.connect(self._on_seek)
             bar.inRequested.connect(self.set_in_at)
             bar.outRequested.connect(self.set_out_at)
+            bar.addClipRequested.connect(self.add_segment)
+            bar.clearRangeRequested.connect(self._clear_float_range)
+            bar.removeClipRequested.connect(self.remove_clip)
+            bar.segEdgeMoved.connect(self._on_seg_edge_moved)
+            bar.dragFinished.connect(self._on_seg_drag_finished)
             tl_box.addWidget(bar)
         root.addLayout(tl_box)
 
@@ -223,7 +229,7 @@ class MainWindow(QMainWindow):
         self.btn_preview = self._icon_button("▶#", tr("tip_preview"),
                                              self.toggle_preview)
         self.btn_clear_range = self._icon_button(tr("btn_clear"), tr("tip_clear"),
-                                                 self.clear_range)
+                                                 self.on_clear_clicked)
         self.lbl_range = QLabel("[ – ]")
         self.btn_export = QPushButton(tr("btn_export"))
         self.btn_export.clicked.connect(self.begin_export)
@@ -324,8 +330,11 @@ class MainWindow(QMainWindow):
         self.btn_settings.setToolTip(tr("tip_settings"))
         self.btn_in.setToolTip(tr("tip_in"))
         self.btn_out.setToolTip(tr("tip_out"))
-        self.btn_clear_range.setToolTip(tr("tip_clear"))
-        self.btn_clear_range.setText(tr("btn_clear"))
+        self.btn_add_clip.setToolTip(tr("tip_add_clip"))
+        self.btn_clip_prev.setToolTip(tr("tip_clip_prev"))
+        self.btn_clip_next.setToolTip(tr("tip_clip_next"))
+        self.btn_preview.setToolTip(tr("tip_preview"))
+        self._refresh_clear_button()
         self.btn_export.setText(tr("btn_export"))
         self.btn_export_ok.setText(tr("btn_export_ok"))
         self.btn_export_cancel.setText(tr("btn_export_cancel"))
@@ -464,6 +473,8 @@ class MainWindow(QMainWindow):
         self.out_frame = None
         self.segments = []
         self.selected_clip = None
+        self._clear_backup = None
+        self._refresh_clear_button()
         self.video.clear_crop()
         maxframe = self.reader.total_frames - 1
         for bar in (self.filmstrip, self.waveform):
@@ -760,6 +771,7 @@ class MainWindow(QMainWindow):
     def set_in_at(self, frame: int):
         if not self.reader:
             return
+        self._drop_clear_backup()
         frame = max(0, min(frame, self.reader.total_frames - 1))
         if self.selected_clip is not None:       # 選択中クリップの IN を修正
             self._edit_clip(in_=frame)
@@ -772,6 +784,7 @@ class MainWindow(QMainWindow):
     def set_out_at(self, frame: int):
         if not self.reader:
             return
+        self._drop_clear_backup()
         frame = max(0, min(frame, self.reader.total_frames - 1))
         if self.selected_clip is not None:       # 選択中クリップの OUT を修正
             self._edit_clip(out=frame)
@@ -801,6 +814,79 @@ class MainWindow(QMainWindow):
         self.out_frame = None
         self.segments = []
         self.selected_clip = None
+        self._update_marks()
+
+    def on_clear_clicked(self):
+        """全クリア。直後は「取り消す」に変わり、新たにIN/OUTを打つまで復元可能。"""
+        if self._clear_backup is not None:       # 取り消し (復元)
+            (self.in_frame, self.out_frame,
+             self.segments, self.selected_clip) = self._clear_backup
+            self._clear_backup = None
+            self._refresh_clear_button()
+            self._update_marks()
+            return
+        if (self.in_frame is None and self.out_frame is None
+                and not self.segments):
+            return                               # 何もない時は無視
+        self._clear_backup = (self.in_frame, self.out_frame,
+                              list(self.segments), self.selected_clip)
+        self.clear_range()
+        self._refresh_clear_button()
+
+    def _refresh_clear_button(self):
+        if self._clear_backup is not None:
+            self.btn_clear_range.setText(tr("btn_undo_clear"))
+            self.btn_clear_range.setToolTip(tr("tip_undo_clear"))
+        else:
+            self.btn_clear_range.setText(tr("btn_clear"))
+            self.btn_clear_range.setToolTip(tr("tip_clear"))
+
+    def _drop_clear_backup(self):
+        """新たに IN/OUT を設定したら全クリアの取り消しは無効化。"""
+        if self._clear_backup is not None:
+            self._clear_backup = None
+            self._refresh_clear_button()
+
+    # --- タイムライン上の直接操作 ---------------------------------------
+    def _clear_float_range(self):
+        """右クリック: 浮動 IN-OUT 範囲のみクリア。"""
+        self.in_frame = None
+        self.out_frame = None
+        self._update_marks()
+
+    def remove_clip(self, idx: int):
+        """右クリック: クリップ帯の削除。"""
+        if not (0 <= idx < len(self.segments)):
+            return
+        del self.segments[idx]
+        if self.selected_clip is not None:
+            if self.selected_clip == idx:
+                self.selected_clip = None
+            elif self.selected_clip > idx:
+                self.selected_clip -= 1
+        self._update_marks()
+
+    def _on_seg_edge_moved(self, idx: int, which: str, frame: int):
+        """クリップ境界のドラッグ (選択不要)。ドラッグ中は並べ替えない。"""
+        if not (0 <= idx < len(self.segments)):
+            return
+        a, b = self.segments[idx]
+        if which == "in":
+            a = frame
+        else:
+            b = frame
+        if a >= b:
+            return
+        self.segments[idx] = (a, b)
+        self._update_marks()
+
+    def _on_seg_drag_finished(self):
+        """ドラッグ終了時に時系列順へ整理 (選択は追跡)。"""
+        sel = (self.segments[self.selected_clip]
+               if self.selected_clip is not None else None)
+        self.segments.sort()
+        if sel is not None:
+            self.selected_clip = self.segments.index(sel)
         self._update_marks()
 
     # --- クリップの選択 / 移動 / 修正 -----------------------------------
