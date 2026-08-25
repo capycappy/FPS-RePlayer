@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QDialog, QGridLayout, QLabel, QComboBox, QKeySequenceEdit,
-    QDialogButtonBox, QPushButton, QFrame,
+    QDialogButtonBox, QPushButton, QFrame, QCheckBox,
 )
 
 from i18n import tr
@@ -75,7 +75,8 @@ LANG_OPTIONS = [("auto", "lang_auto"), ("en", "English"), ("ja", "日本語")]
 class ShortcutDialog(QDialog):
     """言語選択 + アクションごとのキー/マウス割り当て設定ダイアログ。"""
 
-    def __init__(self, parent, config: InputConfig, lang_pref: str = "auto"):
+    def __init__(self, parent, config: InputConfig, lang_pref: str = "auto",
+                 check_updates: bool = True):
         super().__init__(parent)
         self.setWindowTitle(tr("settings_title"))
         self.config = config
@@ -92,15 +93,20 @@ class ShortcutDialog(QDialog):
         self.lang_combo.setCurrentIndex(idx)
         grid.addWidget(self.lang_combo, 0, 1, 1, 2)
 
+        # アップデート確認
+        self.chk_updates = QCheckBox(tr("chk_updates"))
+        self.chk_updates.setChecked(check_updates)
+        grid.addWidget(self.chk_updates, 1, 0, 1, 3)
+
         line0 = QFrame()
         line0.setFrameShape(QFrame.HLine)
-        grid.addWidget(line0, 1, 0, 1, 3)
+        grid.addWidget(line0, 2, 0, 1, 3)
 
-        grid.addWidget(self._header(tr("col_action")), 2, 0)
-        grid.addWidget(self._header(tr("col_key")), 2, 1)
-        grid.addWidget(self._header(tr("col_mouse")), 2, 2)
+        grid.addWidget(self._header(tr("col_action")), 3, 0)
+        grid.addWidget(self._header(tr("col_key")), 3, 1)
+        grid.addWidget(self._header(tr("col_mouse")), 3, 2)
 
-        for r, (aid, icon, _, _) in enumerate(DEFAULT_ACTIONS, start=3):
+        for r, (aid, icon, _, _) in enumerate(DEFAULT_ACTIONS, start=4):
             grid.addWidget(QLabel(f"{icon}  {tr('act_' + aid)}"), r, 0)
 
             kse = QKeySequenceEdit(QKeySequence(self.config.keys[aid]))
@@ -116,7 +122,7 @@ class ShortcutDialog(QDialog):
 
             self._rows[aid] = (kse, combo)
 
-        nrow = len(DEFAULT_ACTIONS) + 3
+        nrow = len(DEFAULT_ACTIONS) + 4
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         reset_btn = QPushButton(tr("restore_defaults"))
         bb.addButton(reset_btn, QDialogButtonBox.ResetRole)

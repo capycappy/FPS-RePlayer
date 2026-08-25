@@ -8,7 +8,8 @@ import queue
 
 from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal
 from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen,
-                           QColor, QPainterPath, QAction)
+                           QColor, QPainterPath, QAction, QDesktopServices)
+from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QDialog, QComboBox, QCheckBox,
@@ -26,7 +27,8 @@ from clip_store import ClipStore
 import i18n
 from i18n import tr
 
-from version import APP_NAME
+from version import APP_NAME, APP_VERSION
+from updater import UpdateChecker, RELEASES_PAGE
 
 SPEEDS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 4.0, 8.0, 16.0]
 
@@ -106,8 +108,10 @@ class WedgeVolumeSlider(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
         self.resize(1100, 760)
+        self._update_url = RELEASES_PAGE
+        self.updater = None
         self.setAcceptDrops(True)
         self.settings = QSettings("Claude_Movieplayer", "FPSRePlayer")
         self._activated_ts = 0.0   # 直近にウィンドウがアクティブ化された時刻
@@ -156,6 +160,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._apply_bindings()
         self._update_labels()
+        self._start_update_check()
 
     # ------------------------------------------------------------------
     def _build_ui(self):
@@ -207,6 +212,14 @@ class MainWindow(QMainWindow):
                   self.vol_slider, self.lbl_vol):
             row1.addWidget(w)
         row1.addStretch(1)
+        self.btn_update = QPushButton("")   # アップデートありのときだけ表示
+        self.btn_update.setVisible(False)
+        self.btn_update.setToolTip(tr("tip_update"))
+        self.btn_update.setStyleSheet(
+            "QPushButton{color:#0c0c0e;background:#ffd200;font-weight:bold;"
+            "border-radius:4px;padding:3px 10px;}")
+        self.btn_update.clicked.connect(self._open_update)
+        row1.addWidget(self.btn_update)
         self.lbl_frame = QLabel("- / -")
         row1.addWidget(self.lbl_frame)
         root.addLayout(row1)
@@ -308,11 +321,29 @@ class MainWindow(QMainWindow):
         elif action == "file_next":
             self.next_file()
 
+    # --- アップデート確認 ------------------------------------------------
+    def _start_update_check(self):
+        if not self.settings.value("check_updates", True, bool):
+            return
+        self.updater = UpdateChecker(APP_VERSION, APP_NAME, self)
+        self.updater.available.connect(self._on_update_available)
+        self.updater.check()
+
+    def _on_update_available(self, version: str, url: str):
+        self._update_url = url
+        self.btn_update.setText(f"🔔 v{version}")
+        self.btn_update.setVisible(True)
+
+    def _open_update(self):
+        QDesktopServices.openUrl(QUrl(self._update_url or RELEASES_PAGE))
+
     def _open_shortcuts(self):
-        dlg = ShortcutDialog(self, self.input_cfg, self.lang_pref)
+        cur_updates = self.settings.value("check_updates", True, bool)
+        dlg = ShortcutDialog(self, self.input_cfg, self.lang_pref, cur_updates)
         if dlg.exec() == QDialog.Accepted:
             self.input_cfg.save(self.settings)
             self._apply_bindings()
+            self.settings.setValue("check_updates", dlg.chk_updates.isChecked())
             if dlg.lang_pref != self.lang_pref:
                 self.lang_pref = dlg.lang_pref
                 self.settings.setValue("language", self.lang_pref)
@@ -338,8 +369,10 @@ class MainWindow(QMainWindow):
         self.btn_export.setText(tr("btn_export"))
         self.btn_export_ok.setText(tr("btn_export_ok"))
         self.btn_export_cancel.setText(tr("btn_export_cancel"))
+        self.btn_update.setToolTip(tr("tip_update"))
+        base = f"{APP_NAME}  v{APP_VERSION}"
         name = os.path.basename(self.reader.path) if self.reader else ""
-        self.setWindowTitle(f"{APP_NAME} — {name}" if name else APP_NAME)
+        self.setWindowTitle(f"{base} — {name}" if name else base)
         self.video.update()        # プレースホルダ再描画
         self.filmstrip.update()
         self.waveform.update()
@@ -483,7 +516,7 @@ class MainWindow(QMainWindow):
             bar.set_marks(None, None)
         self._restore_clips(path, maxframe)
         self._set_controls_enabled(True)
-        self.setWindowTitle(f"{APP_NAME} — {os.path.basename(path)}")
+        self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION} — {os.path.basename(path)}")
         self._add_recent(path)
         self._show_frame(0)
         self._update_labels()

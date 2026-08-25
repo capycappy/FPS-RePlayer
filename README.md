@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.2.0)
+# FPS RePlayer  (v1.2.1)
 
 English | [日本語](README.ja.md)
 
@@ -92,10 +92,14 @@ All clips are concatenated in chronological order into one clean vertical video
 a live size projection is shown while exporting, and Explorer opens on the output
 file when finished.
 
-## Language
+## Language & updates
 
 English / Japanese. The initial language follows your Windows locale; you can switch
 between Auto / English / 日本語 in the ⚙ Settings dialog (applied instantly and saved).
+
+On startup the app checks GitHub for a newer release and shows a small 🔔 button when
+one is available (click it to open the download page). This is a single request to
+GitHub's public API and sends no personal data; you can turn it off in ⚙ Settings.
 
 ## Supported formats
 

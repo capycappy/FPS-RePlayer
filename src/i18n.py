@@ -50,6 +50,10 @@ T = {
     "tip_faster":   {"en": "Faster",               "ja": "速く"},
     "tip_volume":   {"en": "Volume",               "ja": "音量"},
     "tip_settings": {"en": "Settings",             "ja": "設定"},
+    "tip_update":   {"en": "A new version is available — click to open the download page",
+                     "ja": "新しいバージョンがあります — クリックでダウンロードページを開く"},
+    "chk_updates":  {"en": "Check for updates on startup",
+                     "ja": "起動時にアップデートを確認する"},
     "tip_in":       {"en": "Set In point",         "ja": "IN点を設定"},
     "tip_out":      {"en": "Set Out point",        "ja": "OUT点を設定"},
     "tip_add_clip": {"en": "Add the In–Out range as an export clip "
