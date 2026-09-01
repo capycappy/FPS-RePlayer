@@ -39,12 +39,15 @@ and cut out the interesting moment as a **9:16 vertical clip**.
 | Action | How |
 |--------|-----|
 | Play / Pause | `Space` / button / **left-click the player** (ignored if you drag) |
-| Step back (1 frame) | `←` / `A`. Hold the button for continuous stepping |
-| Step forward (1 frame) | `→` / `D`. Hold the button for continuous stepping |
+| Step back (1 frame) | `←`, or **Shift + wheel down**. Hold the button for continuous stepping |
+| Step forward (1 frame) | `→`, or **Shift + wheel up**. Hold the button for continuous stepping |
 | Speed up / down | `↑` / `↓`, or the **mouse wheel** (0.1×–16×) |
 | Reset to 1× | **Middle-click** (wheel click) |
 | Magnifier (cursor-following) | **Ctrl + mouse wheel** to zoom; the white frame only appears above 1× (up to 20×) |
 | Seek | Click the timeline (filmstrip / waveform) at the bottom; does not stop playback |
+| Set In / Out | `I` / `O`, or Ctrl / Alt-click on the timeline |
+| Previous / next file | `Ctrl + ←` / `Ctrl + →` (same folder, by name) |
+| Open file / recent files | `Ctrl + O`, drag & drop, or **right-click the player** for the last 10 files |
 | Volume | Volume slider in the playback controls (works before opening a file) |
 
 - The magnifier always follows the cursor (no toggle); at 1× nothing is drawn.
@@ -76,9 +79,8 @@ clips appear as numbered yellow bands on the timeline.
   boundaries**; press **＋** to deselect and go back to creating new clips
 - **Clear all** can be undone (the button turns into *Undo*) until a new
   In/Out is set
-- In/Out and clips are **saved per video** automatically (~100 bytes each) and
-  restored when you reopen the same file
-- "Clear" removes the current In/Out and all clips
+- In/Out and clips are **saved per video** automatically (~100 bytes each, in
+  `%APPDATA%\FPSRePlayer\clips.json`) and restored when you reopen the same file
 
 ### Vertical export
 
@@ -139,11 +141,14 @@ src/
   reader.py         PyAV frame-accurate seeking + frame cache
   player_engine.py  background prefetch decoder (smooth playback)
   audio_player.py   audio output (QAudioSink), varispeed
-  timeline.py       filmstrip + waveform seek bar
-  exporter.py       crop → scale → pad vertical export (worker thread)
+  timeline.py       filmstrip + waveform seek bar, clip bands
+  exporter.py       multi-clip vertical export, fade transition (worker thread)
+  clip_store.py     per-video In/Out + clip persistence
   shortcuts.py      rebindable key/mouse settings dialog
+  updater.py        startup update check (GitHub Releases)
   i18n.py           English / Japanese strings
-assets/             app icon
+  version.py        app name and version
+assets/             app icon and screenshots
 tools/              icon generation scripts
 ```
 
