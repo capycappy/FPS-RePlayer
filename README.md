@@ -128,7 +128,7 @@ python -m pip install pyinstaller
 python -m PyInstaller --noconfirm --windowed --name "FPSRePlayer" --collect-all av src\app.py
 ```
 
-`build_exe.bat` writes to `%USERPROFILE%\app\FPSRePlayer\FPSRePlayer\` (outside the repo) —
+`build_exe.bat` writes to `%USERPROFILE%\app\FPSRePlayer\` (outside the repo, `FPSRePlayer.exe` directly inside) —
 distribute the whole folder (zip it and attach to a GitHub Release). `--collect-all av`
 bundles FFmpeg, so target PCs need nothing installed.
 

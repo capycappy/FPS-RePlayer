@@ -117,7 +117,7 @@ python -m pip install pyinstaller
 python -m PyInstaller --noconfirm --windowed --name "FPSRePlayer" --collect-all av src\app.py
 ```
 
-`build_exe.bat` の出力先はリポジトリ外の `%USERPROFILE%\app\FPSRePlayer\FPSRePlayer\`。
+`build_exe.bat` の出力先はリポジトリ外の `%USERPROFILE%\app\FPSRePlayer\`（直下に `FPSRePlayer.exe`）。
 フォルダごと配布（zip にして GitHub の Releases に添付）。
 `--collect-all av` で FFmpeg が同梱されるため配布先に FFmpeg は不要。
 
