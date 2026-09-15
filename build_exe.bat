@@ -1,6 +1,6 @@
 @echo off
-REM FPS RePlayer 配布用 exe をビルドする
-REM 出力はプロジェクト外 (%USERPROFILE%\app\FPSRePlayer) に置く
+REM Build the distributable FPS RePlayer exe.
+REM Output goes OUTSIDE the repo: %USERPROFILE%\app\FPSRePlayer\FPSRePlayer\
 setlocal
 set QT_QPA_PLATFORM=
 set PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe
@@ -10,28 +10,28 @@ set DISTPATH=%USERPROFILE%\app\FPSRePlayer
 set WORKPATH=%LOCALAPPDATA%\FPSRePlayer\build
 set SPECPATH=%LOCALAPPDATA%\FPSRePlayer
 
-REM 依存とPyInstallerを確認
+REM Make sure PyInstaller is available
 "%PY%" -m pip install --upgrade pyinstaller >nul 2>&1
 
-REM アイコンがあれば使う (assets\icon.ico)
+REM Use the icon if present (assets\icon.ico)
 set ICON=
 if exist "%~dp0assets\icon.ico" set ICON=--icon "%~dp0assets\icon.ico" --add-data "%~dp0assets\icon.ico;assets"
 
-REM ビルド (PyAVのffmpeg DLLを同梱)
+REM Build (--collect-all av bundles the FFmpeg DLLs)
 "%PY%" -m PyInstaller --noconfirm --windowed --name "FPSRePlayer" --collect-all av %ICON% ^
   --distpath "%DISTPATH%" --workpath "%WORKPATH%" --specpath "%SPECPATH%" "%~dp0src\app.py"
 
-REM --collect-all が site-packages の __pycache__ を巻き込むと、pyc にビルド機のパス
-REM (C:\Users\<name>\...) が残るので配布物から取り除く
+REM --collect-all may copy site-packages __pycache__ dirs whose .pyc files embed
+REM the build machine's path (C:\Users\<name>\...). Strip them from the bundle.
 for /f "delims=" %%d in ('dir /s /b /ad "%DISTPATH%\FPSRePlayer\__pycache__" 2^>nul') do rd /s /q "%%d"
 
-REM 念のため配布物にビルド機のユーザーパスが残っていないか確認
+REM Safety check: warn if any file in the bundle still contains the build user's path
 findstr /s /m /c:"%USERPROFILE%" "%DISTPATH%\FPSRePlayer\*" >nul 2>&1 && (
-  echo !!! 警告: 配布物にユーザーパスが含まれています。上の findstr で該当ファイルを確認してください
+  echo !!! WARNING: the bundle contains the build machine user path in these files:
   findstr /s /m /c:"%USERPROFILE%" "%DISTPATH%\FPSRePlayer\*"
 )
 
 echo.
-echo === 完了 ===
-echo %DISTPATH%\FPSRePlayer\ フォルダごと配布してください (中の FPSRePlayer.exe が本体)
+echo === Done ===
+echo Distribute the whole folder: %DISTPATH%\FPSRePlayer\  (FPSRePlayer.exe inside is the app)
 endlocal

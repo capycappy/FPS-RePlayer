@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.2.1)
+# FPS RePlayer  (v1.2.2)
 
 English | [日本語](README.ja.md)
 
@@ -128,8 +128,12 @@ python -m pip install pyinstaller
 python -m PyInstaller --noconfirm --windowed --name "FPSRePlayer" --collect-all av src\app.py
 ```
 
-Output goes to `dist\FPSRePlayer\` — distribute the whole folder (zip it and attach to a
-GitHub Release). `--collect-all av` bundles FFmpeg, so target PCs need nothing installed.
+`build_exe.bat` writes to `%USERPROFILE%\app\FPSRePlayer\FPSRePlayer\` (outside the repo) —
+distribute the whole folder (zip it and attach to a GitHub Release). `--collect-all av`
+bundles FFmpeg, so target PCs need nothing installed.
+
+Before publishing, search the output for `Users\` (e.g. `findstr /s /m "Users\\" FPSRePlayer\*`)
+and make sure nothing hits — a build-machine path in the bundle would leak your user name.
 
 ## Project layout
 

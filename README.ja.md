@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.2.1)
+# FPS RePlayer  (v1.2.2)
 
 [English](README.md) | 日本語
 
@@ -117,8 +117,12 @@ python -m pip install pyinstaller
 python -m PyInstaller --noconfirm --windowed --name "FPSRePlayer" --collect-all av src\app.py
 ```
 
-出力 `dist\FPSRePlayer\` をフォルダごと配布（zip にして GitHub の Releases に添付）。
+`build_exe.bat` の出力先はリポジトリ外の `%USERPROFILE%\app\FPSRePlayer\FPSRePlayer\`。
+フォルダごと配布（zip にして GitHub の Releases に添付）。
 `--collect-all av` で FFmpeg が同梱されるため配布先に FFmpeg は不要。
+
+配布前に出力フォルダ内を `Users\` で検索し（例: `findstr /s /m "Users\\" FPSRePlayer\*`）、
+1件もヒットしないことを確認する（ビルド機のパスが残るとユーザー名が漏れる）。
 
 ## ライセンス
 
