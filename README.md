@@ -5,9 +5,9 @@ English | [日本語](README.ja.md)
 **Website:** https://capycappy.com/fps-replayer/
 
 A Windows desktop video player for **frame-by-frame review of FPS gameplay clips**
-such as *Escape from Tarkov* recordings. Step through footage
-one frame at a time in both directions, magnify any spot with a cursor-following lens,
-and cut out the interesting moment as a **9:16 vertical clip**.
+such as *Escape from Tarkov* recordings. Step through footage one frame at a time in
+both directions, magnify any spot with a cursor-following lens, and cut out the
+interesting moment as a **9:16 vertical clip**.
 
 ## Screenshots
 

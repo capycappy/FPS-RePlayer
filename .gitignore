@@ -27,3 +27,11 @@ assets/icon_source.png
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# 非公開の開発ノート (C:\dev\_notes\<project>\ に置く。リポジトリに入れない)
+/PROJECT_OVERVIEW.md
+/CLAUDE.md
+/docs/DECISIONS.md
+/docs/CURRENT_STATUS.md
+/docs/*-PLAN.md
+/HANDOFF.txt
