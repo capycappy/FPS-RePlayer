@@ -18,6 +18,7 @@ REM Make sure PyInstaller is available
 REM Use the icon if present (assets\icon.ico)
 set ICON=
 if exist "%~dp0assets\icon.ico" set ICON=--icon "%~dp0assets\icon.ico" --add-data "%~dp0assets\icon.ico;assets"
+set ICON=%ICON% --add-data "%~dp0assets\icons;assets\icons"
 
 REM Build (--collect-all av bundles the FFmpeg DLLs)
 REM Note: --noconfirm replaces %APPDIR% entirely, so keep nothing else in it

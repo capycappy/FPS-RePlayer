@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.3.0)
+# FPS RePlayer  (v2.0.0)
 
 English | [日本語](README.ja.md)
 
@@ -41,7 +41,7 @@ interesting moment as a **9:16 vertical clip**.
 | Play / Pause | `Space` / button / **left-click the player** (ignored if you drag) |
 | Step back (1 frame) | `←`, or **Shift + wheel down**. Hold the button for continuous stepping |
 | Step forward (1 frame) | `→`, or **Shift + wheel up**. Hold the button for continuous stepping |
-| Speed up / down | `↑` / `↓`, or the **mouse wheel** (0.1×–16×) |
+| Speed up / down | `↑` / `↓`, the **mouse wheel** (also over the speed readout or the timeline), or click the speed readout to pick (0.1×–16×) |
 | Reset to 1× | **Middle-click** (wheel click) |
 | Magnifier (cursor-following) | **Ctrl + mouse wheel** to zoom; the white frame only appears above 1× (up to 20×) |
 | Seek | Click the timeline (filmstrip / waveform) at the bottom; does not stop playback |
@@ -64,42 +64,52 @@ seek bar (loud moments such as gunshots show up as waveform spikes).
 - **Ctrl + click: set In point**
 - **Alt + click: set Out point**
 
-### In / Out & clips (multiple ranges)
+### In / Out & clips (the CLIPS panel)
 
-Set In/Out with `I` / `O` (current position) or Ctrl/Alt-click on the timeline.
-Press **＋** to commit the current In–Out as a **clip**, then select the next range —
-clips appear as numbered yellow bands on the timeline.
+Set In/Out with `I` / `O` (current position), Ctrl/Alt-click on the timeline, or the
+**IN / OUT buttons** in the toolbar. As soon as both are set the range becomes a **clip**
+automatically — no extra confirm step. Clips appear as numbered yellow bands on the
+timeline and as rows in the **CLIPS panel** on the right (toggle it with the `‹ ›` tab
+on the video's right edge; it opens by itself when you set your first In point).
 
-- **⏮ / ⏭** : jump to the previous/next clip's In point and play it
-- **▶#** : preview — play only the clips, in order, exactly as they will be exported
-- **Drag any yellow In/Out line** directly on the timeline to adjust it (no
-  selection needed); a **＋** inside the current In–Out range adds it as a clip,
-  and **right-clicking** a range/clip band removes it
-- While a clip is selected, `I` / `O` (or Ctrl/Alt-click) **edit that clip's
-  boundaries**; press **＋** to deselect and go back to creating new clips
-- **Clear all** can be undone (the button turns into *Undo*) until a new
-  In/Out is set
-- In/Out and clips are **saved per video** automatically (~100 bytes each, in
-  `%APPDATA%\FPSRePlayer\clips.json`) and restored when you reopen the same file
+Each clip row has:
 
-### Vertical export
+- **▶** — play that clip from its In point at its own speed; it stops at the Out point,
+  press again to stop early
+- **In / Out frame fields** — click to type a number, drag up/down to nudge, or use the
+  mouse wheel
+- **speed badge** (`1x`) — click to pick the export speed for that clip (0.1× – 16×)
 
-1. Click **Export vertical** → a **9:16 frame** appears on the video
-2. Drag inside it to **move**, drag the corners to **resize** (always kept at 9:16)
-3. Click **Export this range** → choose the **speed of each clip**, resolution / audio /
-   **fade transition**, and save
+The next clip's row is always shown as a dashed placeholder: click its **[→** to set In
+at the playhead, then **←]** to set Out and confirm.
 
-All clips are concatenated in chronological order into one clean vertical video
-(H.264 + AAC, no distortion or black bars). With 2+ clips you can enable a 0.3s
+- Click a row to select it (yellow outline) — `I` / `O` then edit that clip's ends;
+  click it again or click empty space in the panel to deselect
+- **Drag any yellow In/Out line** directly on the timeline to adjust a clip
+- **Right-click** a clip band on the timeline → *Delete clip #n*
+- **Preview** plays only the clips, in order, each at its own speed
+- **Clear all** can be undone (the button turns into *Undo*, or press `Ctrl+Z`)
+- In/Out, clips and speeds are **saved per video** automatically (`%APPDATA%\FPSRePlayer\clips.json`)
+
+### Export (vertical 9:16 or horizontal 16:9)
+
+1. Click **Export clip** and pick **Vertical 9:16** or **Horizontal 16:9** → a crop frame appears on the video
+2. Drag inside it to **move** (it snaps to the video's center), drag a corner to **resize**
+   (aspect ratio kept; hold **Alt** to resize around the center)
+3. Click **Export** → choose resolution (remembered per orientation) / audio / **fade transition** and save.
+   Each clip is exported at the speed set in the CLIPS panel
+
+All clips are concatenated in chronological order into one clean video
+(H.264 + AAC, no distortion; black bars only if the frame does not fit). With 2+ clips you can enable a 0.3s
 **fade transition** at clip boundaries. The dialog shows the output length and an
 estimated size range, a live size projection is shown while exporting, and Explorer
 opens on the output file when finished.
 
-**Per-clip speed:** every clip in the export dialog has its own speed (0.25× – 4×), so
+**Per-clip speed:** every clip has its own speed (0.1× – 16×, set in the CLIPS panel), so
 one video can mix a slow-motion kill and a fast-forwarded approach. Audio is stretched
 with its pitch preserved; slow motion repeats frames. The chosen speed is shown on the
-clip band (e.g. `2 0.5x`), saved with the clip, and **▶# preview** plays each clip at
-its own speed.
+clip band (e.g. `2 0.5x`), saved with the clip, and **Preview** / the row's ▶ play each
+clip at its own speed.
 
 ## Language & updates
 

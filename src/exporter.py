@@ -19,7 +19,7 @@ from PySide6.QtCore import QObject, Signal
 FADE_SEC = 0.3   # トランジション(フェード)の長さ
 
 # クリップごとに選べる書き出し速度
-EXPORT_SPEEDS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0]
+EXPORT_SPEEDS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0, 16.0]
 
 
 def _even(v: int) -> int:
