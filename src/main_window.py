@@ -321,7 +321,7 @@ class MainWindow(QMainWindow):
     QMenu::item:selected { background: #00e5ff; color: #07070c; }
 
     /* 映像左上の数値表示 / 右上の設定 */
-    QLabel#hud { color: #9defff; background: rgba(7,7,12,160); border: 1px solid #00e5ff33; border-radius: 4px;
+    QLabel#hud { color: rgba(157,239,255,170); background: rgba(7,7,12,70); border: none; border-radius: 4px;
                  padding: 4px 8px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; }
     QPushButton#corner { background: rgba(7,7,12,160); border: 1px solid #00e5ff33; border-radius: 4px;
                          min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px; }
@@ -359,10 +359,10 @@ class MainWindow(QMainWindow):
     QWidget#side QPushButton#preview { background: #0d1118; color: #00e5ff; border: 1px solid #00e5ff99; font-weight: 700; }
     QWidget#side QPushButton#preview:hover { background: #101826; border-color: #00e5ff; }
     QWidget#side QPushButton#preview[active="true"] { background: #00e5ff; color: #07070c; }
-    QPushButton#sidetab { background: #0d1118; border: 1px solid #00e5ff66; border-right: none;
+    QPushButton#sidetab { background: #0d1118; border: 1px solid #ffffff99; border-right: none;
                           border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding: 0; }
     QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
-    QWidget#side QPushButton#sidetab { background: #0d1118; border: 1px solid #00e5ff66; border-left: none;
+    QWidget#side QPushButton#sidetab { background: #0d1118; border: 1px solid #ffffff99; border-left: none;
                                        border-radius: 0; border-top-right-radius: 6px; border-bottom-right-radius: 6px;
                                        min-height: 0; padding: 0; }
     QWidget#side QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
 
-    SIDE_W = 268
+    SIDE_W = 300
 
     def _build_ui(self):
         self.setStyleSheet(self.STYLE)
