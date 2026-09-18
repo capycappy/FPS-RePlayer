@@ -688,10 +688,11 @@ class MainWindow(QMainWindow):
         # 既存の行を捨てる (末尾の stretch は残す)
         while self.clip_list_lay.count() > 1:
             item = self.clip_list_lay.takeAt(0)
-            if item.widget():
-                item.widget().hide()          # 削除待ちの間に古い行が描かれないように
-                item.widget().setParent(None)
-                item.widget().deleteLater()
+            old = item.widget()
+            if old is not None:
+                old.hide()                    # 削除待ちの間に古い行が描かれないように
+                old.setParent(None)
+                old.deleteLater()
         for i, (a, b, sp) in enumerate(self.segments):
             self.clip_list_lay.insertWidget(i, self._make_clip_row(i, a, b, sp))
         # 次のクリップの行は常に出す (何も打っていなくても「IN を打てば始まる」と分かるように)
