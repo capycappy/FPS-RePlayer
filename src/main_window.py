@@ -7,11 +7,11 @@ import time
 import queue
 
 from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal, QSize, QRectF
-from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen, QCursor,
+from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen, QCursor, QIntValidator,
                            QColor, QPainterPath, QAction, QDesktopServices)
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
     QLabel, QFileDialog, QMessageBox, QDialog, QComboBox, QCheckBox,
     QDialogButtonBox, QFormLayout, QProgressDialog, QMenu, QGridLayout,
     QScrollArea, QFrame,
@@ -32,7 +32,7 @@ from i18n import tr
 from version import APP_NAME, APP_VERSION
 from updater import UpdateChecker, RELEASES_PAGE
 
-SPEEDS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0, 16.0]
+SPEEDS = list(EXPORT_SPEEDS)   # 再生速度と書き出し速度は同じ段階
 
 
 def ndarray_to_qimage(arr) -> QImage:
@@ -76,13 +76,13 @@ class LevelVolumeSlider(QWidget):
         p.setRenderHint(QPainter.Antialiasing, True)
         h = self.height()
         lit = self._value / 100.0 * self.BARS
-        h_min, h_max = 5.0, float(h - 2)
+        h_min, h_max = 4.0, 14.0        # 一番高いバーでもボタンのアイコン (20px) より低く
         for i in range(self.BARS):
             x = i * (self.BAR_W + self.GAP)
             # 高さは等差 (端点は正確に h_min / h_max) → 上端が一直線に並ぶ
             bh = h_min + (h_max - h_min) * i / (self.BARS - 1)
             color = QColor("#00e5ff") if i + 1 <= lit + 0.5 else QColor("#1c2431")
-            p.fillRect(QRectF(x, h - 1 - bh, self.BAR_W, bh), color)
+            p.fillRect(QRectF(x, (h + h_max) / 2 - bh, self.BAR_W, bh), color)   # 下端揃え・全体は上下中央
 
     def _set_from_x(self, x):
         self.setValue(round(x / max(1, self.width()) * 100))
@@ -99,6 +99,79 @@ class LevelVolumeSlider(QWidget):
 
     def wheelEvent(self, event):
         self.setValue(self._value + (5 if event.angleDelta().y() > 0 else -5))
+        event.accept()
+
+
+class FrameField(QLineEdit):
+    """クリップの IN/OUT フレーム番号。クリックして直接入力、または上下にドラッグして増減。"""
+    valueChanged = Signal(int)
+    PX_PER_FRAME = 2      # 何 px のドラッグで 1 フレーム動くか
+
+    def __init__(self, value: int, lo: int, hi: int, parent=None):
+        super().__init__(str(int(value)), parent)
+        self._lo, self._hi = int(lo), int(hi)
+        self._v0 = int(value)
+        self._press = None
+        self._dragging = False
+        self.setValidator(QIntValidator(0, 10 ** 9, self))
+        self.setAlignment(Qt.AlignCenter)
+        self.setFixedWidth(44)
+        self.setCursor(Qt.SizeVerCursor)
+        self.setToolTip(tr("tip_frame_field"))
+        self.editingFinished.connect(self._commit_text)
+
+    def set_range(self, lo: int, hi: int):
+        self._lo, self._hi = int(lo), int(hi)
+
+    def value(self) -> int:
+        try:
+            return int(self.text())
+        except ValueError:
+            return self._v0
+
+    def _set(self, v: int):
+        v = max(self._lo, min(self._hi, int(v)))
+        if v != self._v0:
+            self._v0 = v
+            self.setText(str(v))
+            self.valueChanged.emit(v)
+
+    def _commit_text(self):
+        self._set(self.value())
+        self.setText(str(self._v0))
+        self.clearFocus()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._press = (event.position().y(), self._v0)
+            self._dragging = False
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._press is not None and (event.buttons() & Qt.LeftButton):
+            dy = self._press[0] - event.position().y()
+            if self._dragging or abs(dy) > 3:
+                self._dragging = True
+                self._set(self._press[1] + int(dy / self.PX_PER_FRAME))
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._press is not None and event.button() == Qt.LeftButton:
+            if not self._dragging:                # ドラッグしなかった → 入力モード
+                self.setFocus(Qt.MouseFocusReason)
+                self.selectAll()
+            self._press = None
+            self._dragging = False
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def wheelEvent(self, event):
+        self._set(self._v0 + (1 if event.angleDelta().y() > 0 else -1))
         event.accept()
 
 
@@ -174,6 +247,8 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._apply_bindings()
+        self._undo_sc = QShortcut(QKeySequence("Ctrl+Z"), self)     # 全クリアの取り消し
+        self._undo_sc.activated.connect(self._undo_clear)
         self._update_labels()
         self._start_update_check()
 
@@ -198,8 +273,8 @@ class MainWindow(QMainWindow):
     QWidget#pill QPushButton#export { border: none; background: #f5c400; color: #111111; min-width: 0;
                                       max-width: 1000px; padding: 0 12px 0 8px; font-size: 12px; font-weight: 700; }
     QWidget#pill QPushButton#export:hover { border: none; background: #ffd633; }
+    QWidget#pill QPushButton#export[class="text"] { min-width: 96px; }
     QWidget#pill QPushButton#export:disabled { border: none; background: #3a3620; color: #7a7040; }
-    QWidget#pill QPushButton#export_cancel { border: 1px solid #3a3e48; }
     QWidget#pill QPushButton#export_cancel:hover { border: 1px solid #ff4d4d; background: #2a1216; }
     QWidget#pill QPushButton#speed { border: none; min-width: 40px; max-width: 40px; padding: 0 6px;
                                      font-size: 12px; font-weight: 700; color: #00e5ff;
@@ -233,6 +308,11 @@ class MainWindow(QMainWindow):
     QWidget#clipRow:hover { border: 1px solid #00e5ff55; }
     QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
     QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
+    QWidget#clipRow QLineEdit { color: #d9f7ff; background: #0d1118; border: 1px solid #22304a; border-radius: 3px;
+                                padding: 1px 2px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px;
+                                selection-background-color: #00e5ff; selection-color: #07070c; }
+    QWidget#clipRow QLineEdit:hover { border: 1px solid #00e5ff66; }
+    QWidget#clipRow QLineEdit:focus { border: 1px solid #00e5ff; }
     QWidget#clipRow QPushButton#rowplay { background: #0d1118; border: 1px solid #00e5ff66; border-radius: 3px;
                                           min-width: 22px; max-width: 22px; min-height: 22px; max-height: 22px; }
     QWidget#clipRow QPushButton#rowplay:hover { background: #00e5ff; border-color: #00e5ff; }
@@ -253,7 +333,7 @@ class MainWindow(QMainWindow):
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
 
-    SIDE_W = 232
+    SIDE_W = 268
 
     def _build_ui(self):
         self.setStyleSheet(self.STYLE)
@@ -517,7 +597,8 @@ class MainWindow(QMainWindow):
 
     def _refresh_clip_panel(self):
         """クリップ一覧を作り直し、IN/OUT かクリップがあるときだけパネルを出す。"""
-        show = bool(self.segments) or self.in_frame is not None or self.out_frame is not None
+        show = (bool(self.segments) or self.in_frame is not None or self.out_frame is not None
+                or self._clear_backup is not None)      # 全クリア直後は「取り消す」のために残す
         self.side.setVisible(show and self.reader is not None)
         self.lbl_clips_head.setText(f"CLIPS · {len(self.segments)}" if self.segments else "CLIPS")
         # 既存の行を捨てる (末尾の stretch は残す)
@@ -532,11 +613,7 @@ class MainWindow(QMainWindow):
         self.btn_preview.setProperty("active", self.preview_segs is not None)
         self.btn_preview.style().unpolish(self.btn_preview)
         self.btn_preview.style().polish(self.btn_preview)
-        if self.reader and self.segments:
-            total = sum((b - a + 1) / self.reader.fps / max(0.05, sp) for a, b, sp in self.segments)
-            self.lbl_out_len.setText(f"{tr('lbl_out_len')}  {fmt_time(total)}")
-        else:
-            self.lbl_out_len.setText("")
+        self._refresh_out_len()
 
     def _make_clip_row(self, idx, a, b, sp):
         row = QWidget()
@@ -557,8 +634,18 @@ class MainWindow(QMainWindow):
         play.setCursor(Qt.PointingHandCursor)
         play.clicked.connect(lambda _=False, i=idx: self._play_clip(i))
         h.addWidget(play)
-        lbl = QLabel(f"#{idx + 1}  {a}–{b}")
-        h.addWidget(lbl, 1)
+        h.addWidget(QLabel(f"#{idx + 1}"))
+        maxframe = self.reader.total_frames - 1 if self.reader else 10 ** 9
+        f_in = FrameField(a, 0, b - 1)
+        f_out = FrameField(b, a + 1, maxframe)
+        f_in.valueChanged.connect(lambda v, i=idx: self._on_field_edited(i, "in", v))
+        f_out.valueChanged.connect(lambda v, i=idx: self._on_field_edited(i, "out", v))
+        row._fields = (f_in, f_out)
+        h.addWidget(f_in)
+        dash = QLabel("–")
+        dash.setAlignment(Qt.AlignCenter)
+        h.addWidget(dash)
+        h.addWidget(f_out)
         spd = QPushButton(f"{sp:g}x")
         spd.setObjectName("rowspeed")
         spd.setToolTip(tr("tip_row_speed"))
@@ -581,6 +668,47 @@ class MainWindow(QMainWindow):
         if self.selected_clip is not None:
             self.selected_clip = None
             self._update_marks()
+
+    def _on_field_edited(self, idx, which, frame):
+        """行の数値欄から IN/OUT を変更。並び順が変わる場合はドラッグ終了と同じ扱い。"""
+        if not (0 <= idx < len(self.segments)):
+            return
+        a, b, sp = self.segments[idx]
+        if which == "in":
+            a = frame
+        else:
+            b = frame
+        if a >= b:
+            return
+        self.segments[idx] = (a, b, sp)
+        sel = self.segments[self.selected_clip] if self.selected_clip is not None else None
+        order = sorted(self.segments)
+        if order != self.segments:
+            self.segments = order
+            if sel is not None:
+                self.selected_clip = self.segments.index(sel)
+            QTimer.singleShot(0, self._update_marks)   # 欄自身を作り直すので次のイベントで
+        else:
+            item = self.clip_list_lay.itemAt(idx)
+            row = item.widget() if item else None
+            if row is not None and hasattr(row, "_fields"):     # 相手側の欄の上限/下限を更新
+                maxframe = self.reader.total_frames - 1 if self.reader else 10 ** 9
+                row._fields[0].set_range(0, b - 1)
+                row._fields[1].set_range(a + 1, maxframe)
+            self._update_range_label()
+            for bar in (self.filmstrip, self.waveform):
+                bar.set_segments(self.segments, self.selected_clip)
+            self._refresh_out_len()
+            if self.reader:
+                self.clip_store.set(self.reader.path, self.segments,
+                                    self.in_frame, self.out_frame)
+
+    def _refresh_out_len(self):
+        if self.reader and self.segments:
+            total = sum((b - a + 1) / self.reader.fps / max(0.05, sp) for a, b, sp in self.segments)
+            self.lbl_out_len.setText(f"{tr('lbl_out_len')}  {fmt_time(total)}")
+        else:
+            self.lbl_out_len.setText("")
 
     def _select_clip(self, idx):
         """行クリックで選択 (IN/OUT がそのクリップの修正になる)。もう一度で解除。"""
@@ -1264,9 +1392,16 @@ class MainWindow(QMainWindow):
         if self._clear_backup is not None:
             self.btn_clear_range.setText(tr("btn_undo_clear"))
             self.btn_clear_range.setToolTip(tr("tip_undo_clear"))
+            self.btn_clear_range.setIcon(icons.icon("undo", icons.ICON_ACCENT, "#ffffff", size=14))
         else:
             self.btn_clear_range.setText(tr("btn_clear"))
             self.btn_clear_range.setToolTip(tr("tip_clear"))
+            self.btn_clear_range.setIcon(icons.icon("clear", size=14))
+        self._refresh_clip_panel()
+
+    def _undo_clear(self):
+        if self._clear_backup is not None:
+            self.on_clear_clicked()
 
     def _drop_clear_backup(self):
         """新たに IN/OUT を設定したら全クリアの取り消しは無効化。"""
@@ -1436,10 +1571,13 @@ class MainWindow(QMainWindow):
         x, y, w, h = self.video.crop_rect
         crop_text = f"{w} x {h}  ({x},{y})"
 
+        res_key = f"export_res_{self.export_orient}"
         dlg = ExportDialog(self, crop_text, segs, self.reader.fps,
-                           horizontal=(self.export_orient == "h"))
+                           horizontal=(self.export_orient == "h"),
+                           preset_index=int(self.settings.value(res_key, 0, int)))
         if dlg.exec() != QDialog.Accepted:
             return
+        self.settings.setValue(res_key, dlg.combo.currentIndex())   # 次回も同じ解像度
         out_w, out_h = dlg.resolution()
         include_audio = dlg.include_audio() and self.reader.has_audio
         transition = dlg.transition()
@@ -1567,7 +1705,8 @@ class ExportDialog(QDialog):
     # CRF18 のゲーム映像でよくある映像ビットレートの目安 (Mbps)。内容次第で上下する
     EST_MBPS = {1080: 11.0, 720: 6.0, 1440: 20.0}
 
-    def __init__(self, parent=None, crop_text="", segs=None, fps=30.0, horizontal=False):
+    def __init__(self, parent=None, crop_text="", segs=None, fps=30.0, horizontal=False,
+                 preset_index=0):
         """segs: [(in_frame, out_frame, speed), ...]。各クリップの速度をここで決める。"""
         super().__init__(parent)
         self.PRESETS = self.PRESETS_H if horizontal else self.PRESETS_V
@@ -1606,6 +1745,7 @@ class ExportDialog(QDialog):
         self.combo = QComboBox()
         for name, _, _ in self.PRESETS:
             self.combo.addItem(name)
+        self.combo.setCurrentIndex(max(0, min(len(self.PRESETS) - 1, int(preset_index))))
         form.addRow(tr("lbl_resolution"), self.combo)
         self.lbl_est = QLabel("-")
         form.addRow(tr("lbl_est_size"), self.lbl_est)
