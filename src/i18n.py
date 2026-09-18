@@ -90,6 +90,7 @@ T = {
     "menu_export_v":     {"en": "Vertical 9:16 (Shorts / TikTok)", "ja": "縦型 9:16（ショート / TikTok）"},
     "menu_export_h":     {"en": "Horizontal 16:9 (YouTube / X)",   "ja": "横型 16:9（YouTube / X）"},
     "tip_row_stop":      {"en": "Stop", "ja": "停止"},
+    "tip_side_toggle":   {"en": "Show / hide the clip panel", "ja": "クリップパネルを開く / 閉じる"},
     "tip_frame_field":   {"en": "Click to type a frame number, or drag up/down to nudge it (wheel works too)",
                           "ja": "クリックで数値を入力、上下にドラッグで増減（ホイールでも可）"},
     "crop_hint":         {"en": "Drag to move (snaps to center) / drag a corner to resize / Alt+drag keeps the center",

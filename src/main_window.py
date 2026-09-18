@@ -142,12 +142,13 @@ class FrameField(QLineEdit):
         self.clearFocus()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.LeftButton and not self.hasFocus():
+            # 未フォーカス: 上下ドラッグで増減 / 動かさず離したら入力モードへ
             self._press = (event.position().y(), self._v0)
             self._dragging = False
             event.accept()
             return
-        super().mousePressEvent(event)
+        super().mousePressEvent(event)      # フォーカス中は普通のテキスト編集 (カーソル移動・範囲選択)
 
     def mouseMoveEvent(self, event):
         if self._press is not None and (event.buttons() & Qt.LeftButton):
@@ -161,14 +162,26 @@ class FrameField(QLineEdit):
 
     def mouseReleaseEvent(self, event):
         if self._press is not None and event.button() == Qt.LeftButton:
-            if not self._dragging:                # ドラッグしなかった → 入力モード
+            if not self._dragging:                # ドラッグしなかった → 入力モード (全選択)
                 self.setFocus(Qt.MouseFocusReason)
                 self.selectAll()
+                self.setCursor(Qt.IBeamCursor)
             self._press = None
             self._dragging = False
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    def focusOutEvent(self, event):
+        self.setCursor(Qt.SizeVerCursor)          # 編集を終えたらドラッグ用カーソルに戻す
+        super().focusOutEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Escape):
+            self._commit_text()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def wheelEvent(self, event):
         self._set(self._v0 + (1 if event.angleDelta().y() > 0 else -1))
@@ -329,6 +342,9 @@ class MainWindow(QMainWindow):
     QWidget#side QPushButton#preview { background: #0d1118; color: #00e5ff; border: 1px solid #00e5ff99; font-weight: 700; }
     QWidget#side QPushButton#preview:hover { background: #101826; border-color: #00e5ff; }
     QWidget#side QPushButton#preview[active="true"] { background: #00e5ff; color: #07070c; }
+    QPushButton#sidetab { background: #0e1117; border: none; border-left: 1px solid #1b2230; border-radius: 0;
+                          color: #f5c400; font-size: 10px; font-weight: 700; padding: 0; }
+    QPushButton#sidetab:hover { background: #141924; }
     QWidget#side QScrollArea { border: none; background: transparent; }
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
@@ -378,6 +394,8 @@ class MainWindow(QMainWindow):
 
         self._build_sidebar()
         outer.addWidget(self.side)
+        self._build_side_tab()
+        outer.addWidget(self.side_tab)
 
         self.setCentralWidget(central)
         self._set_controls_enabled(False)
@@ -595,11 +613,33 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.lbl_out_len)
         self.side.setVisible(False)
 
+    def _build_side_tab(self):
+        """パネルの右端に常に見える細いタブ。クリックで開閉、閉じているときはクリップ数を表示。"""
+        self.side_tab = QPushButton()
+        self.side_tab.setObjectName("sidetab")
+        self.side_tab.setCursor(Qt.PointingHandCursor)
+        self.side_tab.setFixedWidth(18)
+        self.side_tab.setToolTip(tr("tip_side_toggle"))
+        self.side_tab.clicked.connect(self.toggle_side)
+        self.side_open = bool(self.settings.value("side_open", True, bool))
+        self._refresh_side_tab()
+
+    def toggle_side(self):
+        self.side_open = not self.side_open
+        self.settings.setValue("side_open", self.side_open)
+        self._refresh_clip_panel()
+
+    def _refresh_side_tab(self):
+        n = len(self.segments)
+        self.side_tab.setIcon(icons.icon("panel_close" if self.side_open else "panel_open", size=14))
+        self.side_tab.setIconSize(QSize(14, 14))
+        self.side_tab.setText("" if self.side_open or not n else str(n))
+        self.side_tab.setVisible(self.reader is not None)
+
     def _refresh_clip_panel(self):
-        """クリップ一覧を作り直し、IN/OUT かクリップがあるときだけパネルを出す。"""
-        show = (bool(self.segments) or self.in_frame is not None or self.out_frame is not None
-                or self._clear_backup is not None)      # 全クリア直後は「取り消す」のために残す
-        self.side.setVisible(show and self.reader is not None)
+        """クリップ一覧を作り直し、パネルは開閉状態に従って出す。"""
+        self.side.setVisible(self.side_open and self.reader is not None)
+        self._refresh_side_tab()
         self.lbl_clips_head.setText(f"CLIPS · {len(self.segments)}" if self.segments else "CLIPS")
         # 既存の行を捨てる (末尾の stretch は残す)
         while self.clip_list_lay.count() > 1:
@@ -838,6 +878,7 @@ class MainWindow(QMainWindow):
         self._relayout_overlays()
         self.btn_export_ok.setText(tr("btn_export_ok"))
         self.btn_update.setToolTip(tr("tip_update"))
+        self.side_tab.setToolTip(tr("tip_side_toggle"))
         base = f"{APP_NAME}  v{APP_VERSION}"
         name = os.path.basename(self.reader.path) if self.reader else ""
         self.setWindowTitle(f"{base} — {name}" if name else base)
