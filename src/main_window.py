@@ -113,6 +113,7 @@ class FrameField(QLineEdit):
         self._v0 = int(value)
         self._press = None
         self._dragging = False
+        self._had_focus = False
         self.setValidator(QIntValidator(0, 10 ** 9, self))
         self.setAlignment(Qt.AlignCenter)
         self.setFixedWidth(44)
@@ -142,30 +143,46 @@ class FrameField(QLineEdit):
         self.clearFocus()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and not self.hasFocus():
-            # 未フォーカス: 上下ドラッグで増減 / 動かさず離したら入力モードへ
+        if event.button() == Qt.LeftButton:
+            # 押した位置を覚えておき、上下に動いたらドラッグ増減、動かさなければ通常のクリック
             self._press = (event.position().y(), self._v0)
             self._dragging = False
-            event.accept()
+            self._had_focus = self.hasFocus()
+            if self._had_focus:
+                super().mousePressEvent(event)   # フォーカス中はカーソル移動も同時に行う
+            else:
+                event.accept()
             return
-        super().mousePressEvent(event)      # フォーカス中は普通のテキスト編集 (カーソル移動・範囲選択)
+        super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self._press is not None and (event.buttons() & Qt.LeftButton):
             dy = self._press[0] - event.position().y()
             if self._dragging or abs(dy) > 3:
-                self._dragging = True
+                if not self._dragging:
+                    self._dragging = True
+                    self.setCursor(Qt.SizeVerCursor)
+                    self.deselect()
                 self._set(self._press[1] + int(dy / self.PX_PER_FRAME))
+                event.accept()
+                return
+            if self._had_focus:
+                super().mouseMoveEvent(event)    # 横方向の動きは範囲選択
             event.accept()
             return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if self._press is not None and event.button() == Qt.LeftButton:
-            if not self._dragging:                # ドラッグしなかった → 入力モード (全選択)
+            if self._dragging:                    # ドラッグで確定 → 編集状態は解除
+                self.clearFocus()
+                self.setCursor(Qt.SizeVerCursor)
+            elif not self._had_focus:             # 未フォーカスのクリック → 入力モード (全選択)
                 self.setFocus(Qt.MouseFocusReason)
                 self.selectAll()
                 self.setCursor(Qt.IBeamCursor)
+            else:
+                super().mouseReleaseEvent(event)  # フォーカス中のクリック → カーソル移動
             self._press = None
             self._dragging = False
             event.accept()
