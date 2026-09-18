@@ -362,6 +362,9 @@ class MainWindow(QMainWindow):
     QPushButton#sidetab { background: #0d1118; border: 1px solid #00e5ff66; border-right: none;
                           border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding: 0; }
     QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
+    QWidget#side QPushButton#sideclose { background: transparent; border: 1px solid transparent; border-radius: 4px;
+                                         min-height: 0; padding: 0; }
+    QWidget#side QPushButton#sideclose:hover { border: 1px solid #00e5ff; background: #121722; }
     QWidget#side QScrollArea { border: none; background: transparent; }
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
@@ -411,7 +414,6 @@ class MainWindow(QMainWindow):
 
         self._build_sidebar()
         self._build_side_tab()
-        outer.addWidget(self.side_tab_box)
         outer.addWidget(self.side)
 
         self.setCentralWidget(central)
@@ -573,6 +575,7 @@ class MainWindow(QMainWindow):
         self.lbl_frame.adjustSize()
         self.lbl_frame.move(12, 10)
         self.btn_settings.move(v.width() - self.btn_settings.width() - 12, 10)
+        self.side_tab.move(v.width() - self.side_tab.width(), (v.height() - self.side_tab.height()) // 2)
         self.btn_update.adjustSize()
         self.btn_update.move(v.width() - self.btn_settings.width() - 12
                              - self.btn_update.width() - 6, 10)
@@ -583,18 +586,27 @@ class MainWindow(QMainWindow):
         self.side.setObjectName("side")
         self.side.setFixedWidth(self.SIDE_W)
         lay = QVBoxLayout(self.side)
-        lay.setContentsMargins(12, 14, 12, 12)
-        lay.setSpacing(10)
+        lay.setContentsMargins(12, 10, 12, 12)
+        lay.setSpacing(8)
 
+        head = QHBoxLayout()
+        head.setContentsMargins(0, 0, 0, 0)
         self.lbl_clips_head = QLabel("CLIPS")
         self.lbl_clips_head.setProperty("class", "lab")
-        lay.addWidget(self.lbl_clips_head)
-        self.lbl_range = QLabel("")
-        self.lbl_range.setProperty("class", "range")
-        self.lbl_range.setWordWrap(True)
-        self.lbl_range.setFixedHeight(34)          # 2行ぶんを常に確保 (行の位置が動かない)
-        self.lbl_range.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        lay.addWidget(self.lbl_range)
+        head.addWidget(self.lbl_clips_head)
+        head.addStretch(1)
+        self.side_close = QPushButton()               # 開いているときの「＞」(畳む)
+        self.side_close.setObjectName("sideclose")
+        self.side_close.setCursor(Qt.PointingHandCursor)
+        self.side_close.setFixedSize(22, 22)
+        self.side_close.setIcon(icons.icon("panel_close", icons.ICON_ACCENT, "#ffffff", size=16))
+        self.side_close.setIconSize(QSize(16, 16))
+        self.side_close.setToolTip(tr("tip_side_toggle"))
+        self.side_close.clicked.connect(self.toggle_side)
+        head.addWidget(self.side_close)
+        lay.addLayout(head)
+        self.lbl_range = QLabel("")                   # (説明は表示しない。互換のため残す)
+        self.lbl_range.setVisible(False)
 
         self.clip_scroll = QScrollArea()
         self.clip_scroll.setWidgetResizable(True)
@@ -632,20 +644,14 @@ class MainWindow(QMainWindow):
 
     def _build_side_tab(self):
         """パネルの右端に常に見える細いタブ。クリックで開閉、閉じているときはクリップ数を表示。"""
-        self.side_tab = QPushButton()
+        # 閉じているとき: 映像の右端に重ねる縦長タブ (レイアウトを崩さない → 左右の余白が対称)
+        self.side_tab = QPushButton(self.video)
         self.side_tab.setObjectName("sidetab")
         self.side_tab.setCursor(Qt.PointingHandCursor)
         self.side_tab.setFixedSize(22, 96)
         self.side_tab.setToolTip(tr("tip_side_toggle"))
         self.side_tab.clicked.connect(self.toggle_side)
-        # 縦方向の中央に置くための箱
-        self.side_tab_box = QWidget()
-        self.side_tab_box.setFixedWidth(22)
-        box = QVBoxLayout(self.side_tab_box)
-        box.setContentsMargins(0, 0, 0, 0)
-        box.addStretch(1)
-        box.addWidget(self.side_tab)
-        box.addStretch(1)
+        self.side_tab.raise_()
         self.side_open = bool(self.settings.value("side_open", True, bool))
         self._refresh_side_tab()
 
@@ -656,18 +662,18 @@ class MainWindow(QMainWindow):
 
     def _refresh_side_tab(self):
         n = len(self.segments)
-        # パネルは右にあるので、開いているときは「＞」(右へ畳む)、閉じているときは「＜」(左へ開く)
-        self.side_tab.setIcon(icons.icon("panel_close" if self.side_open else "panel_open",
-                                         icons.ICON_ACCENT, "#ffffff", size=18))
+        # 閉じているとき: 映像上の「＜」(開く)。開いているとき: パネル見出しの「＞」(畳む)
+        self.side_tab.setIcon(icons.icon("panel_open", icons.ICON_ACCENT, "#ffffff", size=18))
         self.side_tab.setIconSize(QSize(18, 18))
         self.side_tab.setToolTip(tr("tip_side_toggle") + ("" if not n else f"  ({n})"))
-        self.side_tab_box.setVisible(self.reader is not None)
+        self.side_tab.setVisible(self.reader is not None and not self.side_open)
+        self._relayout_overlays()
 
     def _refresh_clip_panel(self):
         """クリップ一覧を作り直し、パネルは開閉状態に従って出す。"""
         self.side.setVisible(self.side_open and self.reader is not None)
         self._refresh_side_tab()
-        self.lbl_clips_head.setText(f"CLIPS · {len(self.segments)}" if self.segments else "CLIPS")
+        self.lbl_clips_head.setText("CLIPS")
         # 既存の行を捨てる (末尾の stretch は残す)
         while self.clip_list_lay.count() > 1:
             item = self.clip_list_lay.takeAt(0)
@@ -700,8 +706,8 @@ class MainWindow(QMainWindow):
         play.setObjectName("rowplay")
         play.setCursor(Qt.PointingHandCursor)
         play.clicked.connect(lambda _=False, i=idx: self._play_clip(i))
-        h.addWidget(play)
         h.addWidget(QLabel(f"#{idx + 1}"))
+        h.addWidget(play)
         maxframe = self.reader.total_frames - 1 if self.reader else 10 ** 9
         f_in = FrameField(a, 0, b - 1)
         f_out = FrameField(b, a + 1, maxframe)
