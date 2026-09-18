@@ -340,10 +340,10 @@ class MainWindow(QMainWindow):
     QWidget#clipRow:hover { border: 1px solid #00e5ff55; }
     QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
     QWidget#clipRow[pending="true"] { background: #101520; border: 1px dashed #f5c40099; }
-    QWidget#clipRow QLineEdit[readOnly="true"] { color: #6f7a8a; border: 1px dashed #2a3344; }
-    QWidget#clipRow QLineEdit[next="true"] { color: #f5c400; border: 1px dashed #f5c400; background: rgba(245,196,0,22);
-                                             font-weight: 700; }
-    QWidget#clipRow QLineEdit[readOnly="true"]:hover { border-style: solid; background: rgba(245,196,0,40); color: #ffd84a; }
+    QWidget#clipRow QPushButton#pendfield { background: #0d1118; border: 1px dashed #2a3344; border-radius: 3px;
+                                            min-width: 42px; max-width: 42px; min-height: 20px; max-height: 20px; padding: 0; }
+    QWidget#clipRow QPushButton#pendfield[next="true"] { border: 1px dashed #f5c400; background: rgba(245,196,0,22); }
+    QWidget#clipRow QPushButton#pendfield:hover { border-style: solid; border-color: #f5c400; background: rgba(245,196,0,40); }
     QWidget#side QLabel[class="hint"] { color: #f5c400; font-size: 10px; font-family: Consolas, "Cascadia Mono", monospace; }
     QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
     QWidget#clipRow QLineEdit { color: #d9f7ff; background: #0d1118; border: 1px solid #22304a; border-radius: 3px;
@@ -776,24 +776,14 @@ class MainWindow(QMainWindow):
             f_in = FrameField(self.in_frame, 0, (self.out_frame - 1) if self.out_frame is not None else maxframe - 1)
             f_in.valueChanged.connect(lambda v: self.set_in_at(v))
         else:
-            f_in = QLineEdit(); f_in.setPlaceholderText("IN"); f_in.setReadOnly(True)
-            f_in.setAlignment(Qt.AlignCenter); f_in.setFixedWidth(44)
-            f_in.setProperty("next", True)               # 次に打つのはここ
-            f_in.setToolTip(tr("tip_pending_in"))
-            f_in.setCursor(Qt.PointingHandCursor)
-            f_in.mousePressEvent = lambda ev: self.set_in()       # クリックで再生位置に IN
+            f_in = self._pending_button("in", True, tr("tip_pending_in"), self.set_in)
         h.addWidget(f_in)
         dash = QLabel("–"); dash.setAlignment(Qt.AlignCenter); h.addWidget(dash)
         if self.out_frame is not None:
             f_out = FrameField(self.out_frame, (self.in_frame + 1) if self.in_frame is not None else 1, maxframe)
             f_out.valueChanged.connect(lambda v: self.set_out_at(v))
         else:
-            f_out = QLineEdit(); f_out.setPlaceholderText("OUT"); f_out.setReadOnly(True)
-            f_out.setAlignment(Qt.AlignCenter); f_out.setFixedWidth(44)
-            f_out.setProperty("next", self.in_frame is not None)   # IN 済みなら次は OUT
-            f_out.setToolTip(tr("tip_pending_out"))
-            f_out.setCursor(Qt.PointingHandCursor)
-            f_out.mousePressEvent = lambda ev: self.set_out()     # クリックで再生位置に OUT
+            f_out = self._pending_button("out", self.in_frame is not None, tr("tip_pending_out"), self.set_out)
         h.addWidget(f_out)
         spd = QPushButton("1x")                       # 速度バッジの位置合わせ (まだ選べない)
         spd.setObjectName("rowspeed")
@@ -820,6 +810,20 @@ class MainWindow(QMainWindow):
         v.addWidget(hint)
         box.setProperty("pending", True)
         return box
+
+    def _pending_button(self, icon_name, is_next, tooltip, slot):
+        """空欄の代わりに置く、ツールバーと同じ IN / OUT アイコンのボタン。クリックで再生位置に打つ。"""
+        b = QPushButton()
+        b.setObjectName("pendfield")
+        b.setProperty("role", icon_name.upper())
+        b.setProperty("next", bool(is_next))
+        color = "#f5c400" if is_next else "#6f7a8a"
+        b.setIcon(icons.icon(icon_name, color, "#ffd84a", size=16))
+        b.setIconSize(QSize(16, 16))       # 大きさはスタイルシート側 (数値欄と同じ 44x22)
+        b.setToolTip(tooltip)
+        b.setCursor(Qt.PointingHandCursor)
+        b.clicked.connect(slot)
+        return b
 
     def _on_field_edited(self, idx, which, frame):
         """行の数値欄から IN/OUT を変更。並び順が変わる場合はドラッグ終了と同じ扱い。"""
