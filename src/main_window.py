@@ -337,6 +337,9 @@ class MainWindow(QMainWindow):
     QWidget#clipRow { background: #141924; border: 1px solid #141924; border-radius: 4px; }
     QWidget#clipRow:hover { border: 1px solid #00e5ff55; }
     QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
+    QWidget#clipRow[pending="true"] { background: #101520; border: 1px dashed #f5c40099; }
+    QWidget#clipRow QLineEdit[readOnly="true"] { color: #6f7a8a; border: 1px dashed #2a3344; }
+    QWidget#clipRow QLabel[class="hint"] { color: #f5c400; font-size: 10px; }
     QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
     QWidget#clipRow QLineEdit { color: #d9f7ff; background: #0d1118; border: 1px solid #22304a; border-radius: 3px;
                                 padding: 1px 2px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px;
@@ -683,6 +686,8 @@ class MainWindow(QMainWindow):
                 item.widget().deleteLater()
         for i, (a, b, sp) in enumerate(self.segments):
             self.clip_list_lay.insertWidget(i, self._make_clip_row(i, a, b, sp))
+        if self.in_frame is not None or self.out_frame is not None:
+            self.clip_list_lay.insertWidget(len(self.segments), self._make_pending_row())
         self.btn_preview.setEnabled(bool(self.segments) or
                                     (self.in_frame is not None and self.out_frame is not None))
         self.btn_preview.setProperty("active", self.preview_segs is not None)
@@ -743,6 +748,42 @@ class MainWindow(QMainWindow):
         if self.selected_clip is not None:
             self.selected_clip = None
             self._update_marks()
+
+    def _make_pending_row(self):
+        """IN か OUT の片方だけ決まっている「作りかけ」の行。もう片方を打つと確定する。"""
+        row = QWidget()
+        row.setObjectName("clipRow")
+        row.setAttribute(Qt.WA_StyledBackground, True)
+        row.setProperty("pending", True)
+        h = QHBoxLayout(row)
+        h.setContentsMargins(6, 4, 6, 4)
+        h.setSpacing(6)
+        h.addWidget(QLabel(f"#{len(self.segments) + 1}"))
+        play = QPushButton()
+        play.setObjectName("rowplay")
+        play.setEnabled(False)
+        h.addWidget(play)
+        maxframe = self.reader.total_frames - 1 if self.reader else 10 ** 9
+        if self.in_frame is not None:
+            f_in = FrameField(self.in_frame, 0, (self.out_frame - 1) if self.out_frame is not None else maxframe - 1)
+            f_in.valueChanged.connect(lambda v: self.set_in_at(v))
+        else:
+            f_in = QLineEdit(); f_in.setPlaceholderText("IN"); f_in.setReadOnly(True)
+            f_in.setAlignment(Qt.AlignCenter); f_in.setFixedWidth(44)
+        h.addWidget(f_in)
+        dash = QLabel("–"); dash.setAlignment(Qt.AlignCenter); h.addWidget(dash)
+        if self.out_frame is not None:
+            f_out = FrameField(self.out_frame, (self.in_frame + 1) if self.in_frame is not None else 1, maxframe)
+            f_out.valueChanged.connect(lambda v: self.set_out_at(v))
+        else:
+            f_out = QLineEdit(); f_out.setPlaceholderText("OUT"); f_out.setReadOnly(True)
+            f_out.setAlignment(Qt.AlignCenter); f_out.setFixedWidth(44)
+            f_out.setToolTip(tr("tip_pending_out"))
+        h.addWidget(f_out)
+        hint = QLabel(tr("lbl_pending_hint") if self.out_frame is None else tr("lbl_pending_hint_in"))
+        hint.setProperty("class", "hint")
+        h.addWidget(hint)
+        return row
 
     def _on_field_edited(self, idx, which, frame):
         """行の数値欄から IN/OUT を変更。並び順が変わる場合はドラッグ終了と同じ扱い。"""
@@ -1401,6 +1442,7 @@ class MainWindow(QMainWindow):
         if self.out_frame is not None and self.out_frame <= self.in_frame:
             self.out_frame = None
         self._commit_if_complete()
+        self._auto_open_side()
         self._update_marks()
 
     def set_out_at(self, frame: int):
@@ -1415,7 +1457,14 @@ class MainWindow(QMainWindow):
         if self.in_frame is not None and self.in_frame >= self.out_frame:
             self.in_frame = None
         self._commit_if_complete()
+        self._auto_open_side()
         self._update_marks()
+
+    def _auto_open_side(self):
+        """IN/OUT を打ったらクリップパネルを開き、作りかけの行を見せる (操作の誘導)。"""
+        if not self.side_open:
+            self.side_open = True
+            self.settings.setValue("side_open", True)
 
     def _commit_if_complete(self):
         """IN と OUT が両方決まったら、その場でクリップとして確定する (＋は不要)。"""
