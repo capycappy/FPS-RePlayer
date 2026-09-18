@@ -291,6 +291,7 @@ class ExportWorker(QObject):
                 break
             r.pts = None
             for u in self._resampler.resample(r):
+                u = self._normalize_audio(u)
                 u = self._apply_audio_fade(u)
                 u.pts = None
                 fifo.write(u)
@@ -299,6 +300,15 @@ class ExportWorker(QObject):
             chunk.pts = None
             for pkt in a_out.encode(chunk):
                 out.mux(pkt)
+
+    def _normalize_audio(self, r):
+        """FIFO に入れる全フレームを同じ作り方 (ndarray から fltp/stereo) で組み直す。
+        atempo などフィルタを通ったフレームはチャンネルレイアウトの内部表現 (order) が
+        異なることがあり、名前は同じ "stereo" でも AudioFifo が不一致と判定する。"""
+        arr = np.ascontiguousarray(r.to_ndarray().astype(np.float32))
+        nf = av.AudioFrame.from_ndarray(arr, format="fltp", layout="stereo")
+        nf.sample_rate = r.sample_rate
+        return nf
 
     def _apply_audio_fade(self, r):
         """クリップ境界のフェードを波形ゲインとして適用 (fltp planar)。"""
