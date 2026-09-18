@@ -7,7 +7,7 @@ import time
 import queue
 
 from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal
-from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen,
+from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen, QCursor,
                            QColor, QPainterPath, QAction, QDesktopServices)
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
@@ -834,6 +834,7 @@ class MainWindow(QMainWindow):
         self.in_frame = frame
         if self.out_frame is not None and self.out_frame <= self.in_frame:
             self.out_frame = None
+        self._commit_if_complete()
         self._update_marks()
 
     def set_out_at(self, frame: int):
@@ -847,7 +848,17 @@ class MainWindow(QMainWindow):
         self.out_frame = frame
         if self.in_frame is not None and self.in_frame >= self.out_frame:
             self.in_frame = None
+        self._commit_if_complete()
         self._update_marks()
+
+    def _commit_if_complete(self):
+        """IN と OUT が両方決まったら、その場でクリップとして確定する (＋は不要)。"""
+        if self.in_frame is None or self.out_frame is None:
+            return
+        self.segments.append((self.in_frame, self.out_frame, 1.0))
+        self.segments.sort()
+        self.in_frame = None
+        self.out_frame = None
 
     def add_segment(self):
         """現在の IN–OUT をクリップとして確定し、次の区間選択へ。
@@ -910,7 +921,13 @@ class MainWindow(QMainWindow):
         self._update_marks()
 
     def remove_clip(self, idx: int):
-        """右クリック: クリップ帯の削除。"""
+        """右クリック: メニューを出し、「削除」を選んだときだけクリップを消す。"""
+        if not (0 <= idx < len(self.segments)):
+            return
+        menu = QMenu(self)
+        act = menu.addAction(tr("menu_delete_clip").replace("{n}", str(idx + 1)))
+        if menu.exec(QCursor.pos()) is not act:
+            return
         if not (0 <= idx < len(self.segments)):
             return
         del self.segments[idx]

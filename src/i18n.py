@@ -56,10 +56,11 @@ T = {
                      "ja": "起動時にアップデートを確認する"},
     "tip_in":       {"en": "Set In point",         "ja": "IN点を設定"},
     "tip_out":      {"en": "Set Out point",        "ja": "OUT点を設定"},
-    "tip_add_clip": {"en": "Add the In–Out range as an export clip "
-                           "(deselects when a clip is selected)",
-                     "ja": "IN–OUT の範囲を書き出しクリップとして追加"
-                           "（クリップ選択中は選択を解除）"},
+    "tip_add_clip": {"en": "Deselect the clip (In/Out then create new clips). "
+                           "Clips are created automatically once In and Out are both set",
+                     "ja": "クリップの選択を解除（IN/OUT で新規作成へ戻る）。"
+                           "IN と OUT が揃うとクリップは自動で確定されます"},
+    "menu_delete_clip": {"en": "Delete clip #{n}", "ja": "クリップ #{n} を削除"},
     "tip_clip_prev": {"en": "Previous clip (jump to its In & play; In/Out then edit it)",
                       "ja": "前のクリップ（INへ移動して再生。IN/OUTでそのクリップを修正）"},
     "tip_clip_next": {"en": "Next clip (jump to its In & play; In/Out then edit it)",
