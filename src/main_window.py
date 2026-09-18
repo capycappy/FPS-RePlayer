@@ -689,6 +689,8 @@ class MainWindow(QMainWindow):
         while self.clip_list_lay.count() > 1:
             item = self.clip_list_lay.takeAt(0)
             if item.widget():
+                item.widget().hide()          # 削除待ちの間に古い行が描かれないように
+                item.widget().setParent(None)
                 item.widget().deleteLater()
         for i, (a, b, sp) in enumerate(self.segments):
             self.clip_list_lay.insertWidget(i, self._make_clip_row(i, a, b, sp))
