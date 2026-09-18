@@ -47,7 +47,7 @@ class VideoWidget(QWidget):
         self.setMinimumSize(480, 270)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setStyleSheet("background:#101012;")
+        self.setStyleSheet("VideoWidget{background:#101012;}")   # 子(オーバーレイ)に波及させない
         self._thin_cursor = make_thin_cross_cursor()
         self.setCursor(self._thin_cursor)   # プレイヤー上は細い十字カーソル
 

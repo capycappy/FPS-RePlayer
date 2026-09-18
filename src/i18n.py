@@ -61,6 +61,12 @@ T = {
                      "ja": "クリップの選択を解除（IN/OUT で新規作成へ戻る）。"
                            "IN と OUT が揃うとクリップは自動で確定されます"},
     "menu_delete_clip": {"en": "Delete clip #{n}", "ja": "クリップ #{n} を削除"},
+    "btn_preview":   {"en": "Preview", "ja": "プレビュー"},
+    "lbl_editing":   {"en": "Editing clip #{n}  (In/Out move its ends)",
+                      "ja": "クリップ #{n} を編集中（IN/OUT でその両端を修正）"},
+    "tip_row_play":  {"en": "Play this clip from its In point (also selects it)",
+                      "ja": "このクリップを先頭から再生（選択もされます）"},
+    "tip_row_speed": {"en": "Export speed of this clip", "ja": "このクリップの書き出し速度"},
     "tip_clip_prev": {"en": "Previous clip (jump to its In & play; In/Out then edit it)",
                       "ja": "前のクリップ（INへ移動して再生。IN/OUTでそのクリップを修正）"},
     "tip_clip_next": {"en": "Next clip (jump to its In & play; In/Out then edit it)",

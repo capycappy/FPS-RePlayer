@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QDialog, QComboBox, QCheckBox,
     QDialogButtonBox, QFormLayout, QProgressDialog, QMenu, QGridLayout,
-    QScrollArea,
+    QScrollArea, QFrame,
 )
 
 from reader import VideoReader
@@ -165,10 +165,90 @@ class MainWindow(QMainWindow):
         self._start_update_check()
 
     # ------------------------------------------------------------------
+    STYLE = """
+    QMainWindow, QWidget#central { background: #0b0c0f; }
+    QLabel { color: #cfd3dc; }
+    QToolTip { color: #e6e8ee; background: #1a1c22; border: 1px solid #3a3e48; }
+
+    /* 映像の上に浮くピル型ツールバー */
+    QWidget#pill { background: rgba(26, 28, 34, 225); border: 1px solid rgba(255,255,255,22);
+                   border-radius: 23px; }
+    QWidget#pill QPushButton { color: #dfe3ea; background: transparent; border: none;
+                               border-radius: 17px; min-width: 34px; max-width: 34px;
+                               min-height: 34px; max-height: 34px; font-size: 15px; }
+    QWidget#pill QPushButton:hover { background: rgba(255,255,255,28); }
+    QWidget#pill QPushButton:pressed { background: rgba(255,255,255,50); }
+    QWidget#pill QPushButton:disabled { color: #5c6270; }
+    QWidget#pill QPushButton#play { border: none; background: #ffffff; color: #0b0c0f; border-radius: 22px;
+                                    min-width: 44px; max-width: 44px; min-height: 44px;
+                                    max-height: 44px; font-size: 18px; }
+    QWidget#pill QPushButton#play:hover { border: none; background: #e9ebef; }
+    QWidget#pill QPushButton#play:disabled { border: none; background: #3a3e48; color: #7d8491; }
+    QWidget#pill QPushButton[class="text"] { border: none; min-width: 0; max-width: 1000px; padding: 0 12px;
+                                    font-size: 12px; font-weight: 600; background: rgba(255,255,255,13); }
+    QWidget#pill QPushButton[class="text"]:hover { border: none; background: rgba(255,255,255,32); }
+    QWidget#pill QPushButton#export { border: none; background: #f5c400; color: #111111; }
+    QWidget#pill QPushButton#export:hover { border: none; background: #ffd633; }
+    QWidget#pill QPushButton#export:disabled { border: none; background: #4a4425; color: #8a8047; }
+    QWidget#pill QPushButton#export_cancel { border: none; background: rgba(255,255,255,13); }
+    QWidget#pill QLabel { color: #ffffff; font-size: 12px; font-weight: 600; }
+    QWidget#pill QLabel[class="dim"] { color: #aab0bb; font-weight: 500; }
+    QWidget#pill QFrame#sep { background: rgba(255,255,255,26); max-width: 1px; min-width: 1px;
+                              min-height: 20px; max-height: 20px; }
+
+    /* 映像左上の数値表示 / 右上の設定 */
+    QLabel#hud { color: #cfd3da; background: rgba(11,12,15,150); border-radius: 6px;
+                 padding: 4px 8px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; }
+    QPushButton#corner { color: #cfd3dc; background: rgba(11,12,15,150); border: none;
+                         border-radius: 14px; min-width: 28px; max-width: 28px;
+                         min-height: 28px; max-height: 28px; font-size: 14px; }
+    QPushButton#corner:hover { background: rgba(255,255,255,40); }
+    QPushButton#update { color: #0c0c0e; background: #ffd200; font-weight: bold;
+                         border: none; border-radius: 14px; padding: 0 10px; min-height: 28px; }
+
+    /* 右のクリップ管理パネル */
+    QWidget#side { background: #15181e; border-left: 1px solid #22262e; }
+    QWidget#side QLabel[class="lab"] { color: #7d8491; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+    QWidget#side QLabel[class="range"] { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
+    QWidget#clipRow { background: #1c2028; border: 1px solid #1c2028; border-radius: 6px; }
+    QWidget#clipRow:hover { border: 1px solid #3a3f4b; }
+    QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
+    QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
+    QWidget#clipRow QPushButton#rowplay { color: #dfe3ea; background: rgba(255,255,255,14); border: none;
+                                          border-radius: 11px; min-width: 22px; max-width: 22px;
+                                          min-height: 22px; max-height: 22px; font-size: 11px; }
+    QWidget#clipRow QPushButton#rowplay:hover { background: #ffffff; color: #101216; }
+    QWidget#clipRow QComboBox { color: #f5c400; background: rgba(245,196,0,34); border: none;
+                                border-radius: 4px; padding: 1px 4px; font-size: 10px; font-weight: 700;
+                                font-family: Consolas, "Cascadia Mono", monospace; }
+    QWidget#clipRow QComboBox::drop-down { width: 0; border: none; }
+    QWidget#clipRow QComboBox QAbstractItemView { background: #1c2028; color: #dfe3ea;
+                                                  selection-background-color: #f5c400; selection-color: #111; }
+    QWidget#side QPushButton { color: #dfe3ea; background: #1c2028; border: 1px solid #2a2f39;
+                               border-radius: 6px; min-height: 28px; padding: 0 10px; font-size: 12px; }
+    QWidget#side QPushButton:hover { background: #262b35; }
+    QWidget#side QPushButton:disabled { color: #5c6270; }
+    QWidget#side QPushButton#preview { background: #dfe3ea; color: #101216; border-color: #dfe3ea; font-weight: 600; }
+    QWidget#side QPushButton#preview:hover { background: #ffffff; }
+    QWidget#side QPushButton#preview[active="true"] { background: #f5c400; border-color: #f5c400; }
+    QWidget#side QScrollArea { border: none; background: transparent; }
+    QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
+    """
+
+    SIDE_W = 232
+
     def _build_ui(self):
+        self.setStyleSheet(self.STYLE)
         central = QWidget()
-        root = QVBoxLayout(central)
+        central.setObjectName("central")
+        outer = QHBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        left = QWidget()
+        root = QVBoxLayout(left)
         root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(0)
         root.addWidget(self.video, 1)
 
         # タイムライン (シークバー兼用): サムネイル帯 + 音声波形
@@ -190,93 +270,233 @@ class MainWindow(QMainWindow):
             bar.dragFinished.connect(self._on_seg_drag_finished)
             tl_box.addWidget(bar)
         root.addLayout(tl_box)
+        outer.addWidget(left, 1)
 
-        # 1段目: 再生コントロール (アイコンのみ・英語ツールチップ)
-        row1 = QHBoxLayout()
-        self.btn_open = self._icon_button("📂", tr("tip_open"), self.open_file)
-        self.btn_prev = self._icon_button("◁", tr("tip_prev"), self.prev_frame, repeat=True)
-        self.btn_play = self._icon_button("▶", tr("tip_play"), self.toggle_play)
-        self.btn_next = self._icon_button("▷", tr("tip_next"), self.next_frame, repeat=True)
-        self.btn_slow = self._icon_button("▼", tr("tip_slower"), lambda: self.change_speed(-1))
+        self._build_overlays()
+        self._build_sidebar()
+        outer.addWidget(self.side)
+
+        self.setCentralWidget(central)
+        self._set_controls_enabled(False)
+
+    # --- 映像の上のオーバーレイ (ピル型ツールバー / 数値表示 / 設定) ----------
+    def _build_overlays(self):
+        v = self.video
+        self.pill = QWidget(v)
+        self.pill.setObjectName("pill")
+        self.pill.setAttribute(Qt.WA_StyledBackground, True)
+        lay = QHBoxLayout(self.pill)
+        lay.setContentsMargins(8, 6, 8, 6)
+        lay.setSpacing(4)
+
+        self.btn_open = self._pill_button("📂", tr("tip_open"), self.open_file)
+        self.btn_prev = self._pill_button("◁", tr("tip_prev"), self.prev_frame, repeat=True)
+        self.btn_play = self._pill_button("▶", tr("tip_play"), self.toggle_play)
+        self.btn_play.setObjectName("play")
+        self.btn_next = self._pill_button("▷", tr("tip_next"), self.next_frame, repeat=True)
+        self.btn_slow = self._pill_button("▼", tr("tip_slower"), lambda: self.change_speed(-1))
         self.lbl_speed = QLabel("1.0x")
-        self.lbl_speed.setMinimumWidth(48)
+        self.lbl_speed.setMinimumWidth(38)
         self.lbl_speed.setAlignment(Qt.AlignCenter)
-        self.btn_fast = self._icon_button("▲", tr("tip_faster"), lambda: self.change_speed(1))
+        self.btn_fast = self._pill_button("▲", tr("tip_faster"), lambda: self.change_speed(1))
         self.vol_slider = WedgeVolumeSlider()
         self.vol_slider.setToolTip(tr("tip_volume"))
         self.vol_slider.setValue(int(self.volume * 100))
         self.vol_slider.valueChanged.connect(self._on_volume)
         self.lbl_vol = QLabel(f"{int(self.volume * 100)}%")
-        self.lbl_vol.setMinimumWidth(40)
+        self.lbl_vol.setProperty("class", "dim")
+        self.lbl_vol.setMinimumWidth(34)
         self.lbl_vol.setAlignment(Qt.AlignCenter)
-        for w in (self.btn_open, self.btn_prev, self.btn_play, self.btn_next,
-                  self.btn_slow, self.lbl_speed, self.btn_fast,
-                  self.vol_slider, self.lbl_vol):
-            row1.addWidget(w)
-        row1.addStretch(1)
-        self.btn_update = QPushButton("")   # アップデートありのときだけ表示
+        self.btn_in = self._pill_button("IN", tr("tip_in"), self.set_in, text=True)
+        self.btn_out = self._pill_button("OUT", tr("tip_out"), self.set_out, text=True)
+        self.btn_export = self._pill_button("⤓ " + tr("btn_export"), tr("btn_export"),
+                                            self.begin_export, text=True)
+        self.btn_export.setObjectName("export")
+        self.btn_export_ok = self._pill_button(tr("btn_export_ok"), tr("btn_export_ok"),
+                                               self.confirm_export, text=True)
+        self.btn_export_ok.setObjectName("export")
+        self.btn_export_ok.setVisible(False)
+        self.btn_export_cancel = self._pill_button(tr("btn_export_cancel"), tr("btn_export_cancel"),
+                                                   self.cancel_export, text=True)
+        self.btn_export_cancel.setObjectName("export_cancel")
+        self.btn_export_cancel.setVisible(False)
+
+        for w in (self.btn_open, self._sep(), self.btn_prev, self.btn_play, self.btn_next,
+                  self._sep(), self.btn_slow, self.lbl_speed, self.btn_fast,
+                  self._sep(), self.vol_slider, self.lbl_vol,
+                  self._sep(), self.btn_in, self.btn_out,
+                  self._sep(), self.btn_export, self.btn_export_ok, self.btn_export_cancel):
+            lay.addWidget(w)
+
+        # 左上: フレーム/時刻/fps/拡大率  右上: 更新通知 + 設定
+        self.lbl_frame = QLabel("- / -", v)
+        self.lbl_frame.setObjectName("hud")
+        self._zoom = 1.0
+        self.btn_update = QPushButton("", v)   # アップデートありのときだけ表示
+        self.btn_update.setObjectName("update")
         self.btn_update.setVisible(False)
         self.btn_update.setToolTip(tr("tip_update"))
-        self.btn_update.setStyleSheet(
-            "QPushButton{color:#0c0c0e;background:#ffd200;font-weight:bold;"
-            "border-radius:4px;padding:3px 10px;}")
         self.btn_update.clicked.connect(self._open_update)
-        row1.addWidget(self.btn_update)
-        self.lbl_frame = QLabel("- / -")
-        row1.addWidget(self.lbl_frame)
-        root.addLayout(row1)
+        self.btn_settings = QPushButton("⚙", v)
+        self.btn_settings.setObjectName("corner")
+        self.btn_settings.setToolTip(tr("tip_settings"))
+        self.btn_settings.setCursor(Qt.PointingHandCursor)
+        self.btn_settings.clicked.connect(self._open_shortcuts)
+        for w in (self.lbl_frame, self.btn_update, self.btn_settings, self.pill):
+            w.raise_()
+        v.installEventFilter(self)
 
-        # 2段目: 拡大表示 & IN/OUT & 書き出し (アイコンのみ)
-        row2 = QHBoxLayout()
-        self.btn_settings = self._icon_button("⚙", tr("tip_settings"),
-                                              self._open_shortcuts)
-        self.lbl_zoom = QLabel("1.0x")
-        self.lbl_zoom.setMinimumWidth(56)
-        self.lbl_zoom.setAlignment(Qt.AlignCenter)
-        self.btn_in = self._icon_button("IN", tr("tip_in"), self.set_in)
-        self.btn_out = self._icon_button("OUT", tr("tip_out"), self.set_out)
-        self.btn_add_clip = self._icon_button("＋", tr("tip_add_clip"),
-                                              self.add_segment)
-        self.btn_clip_prev = self._icon_button("⏮", tr("tip_clip_prev"),
-                                               self.prev_clip)
-        self.btn_clip_next = self._icon_button("⏭", tr("tip_clip_next"),
-                                               self.next_clip)
-        self.btn_preview = self._icon_button("▶#", tr("tip_preview"),
-                                             self.toggle_preview)
-        self.btn_clear_range = self._icon_button(tr("btn_clear"), tr("tip_clear"),
-                                                 self.on_clear_clicked)
-        self.lbl_range = QLabel("[ – ]")
-        self.btn_export = QPushButton(tr("btn_export"))
-        self.btn_export.clicked.connect(self.begin_export)
-        self.btn_export_ok = QPushButton(tr("btn_export_ok"))
-        self.btn_export_ok.clicked.connect(self.confirm_export)
-        self.btn_export_ok.setVisible(False)
-        self.btn_export_cancel = QPushButton(tr("btn_export_cancel"))
-        self.btn_export_cancel.clicked.connect(self.cancel_export)
-        self.btn_export_cancel.setVisible(False)
-        for w in (self.btn_settings, self.lbl_zoom, self.btn_in,
-                  self.btn_out, self.btn_add_clip, self.btn_clip_prev,
-                  self.btn_clip_next, self.btn_preview,
-                  self.btn_clear_range, self.lbl_range):
-            row2.addWidget(w)
-        row2.addStretch(1)
-        for w in (self.btn_export, self.btn_export_ok, self.btn_export_cancel):
-            row2.addWidget(w)
-        root.addLayout(row2)
+    def _sep(self):
+        f = QFrame(self.pill)
+        f.setObjectName("sep")
+        return f
 
-        self.setCentralWidget(central)
-        self._set_controls_enabled(False)
-
-    def _icon_button(self, icon, tooltip, slot, repeat=False):
-        b = QPushButton(icon)
+    def _pill_button(self, label, tooltip, slot, repeat=False, text=False):
+        b = QPushButton(label)
         b.setToolTip(tooltip)
-        b.setFixedWidth(62)
+        b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(slot)
+        if text:
+            b.setProperty("class", "text")
         if repeat:
             b.setAutoRepeat(True)
             b.setAutoRepeatDelay(300)
             b.setAutoRepeatInterval(55)
         return b
+
+    def eventFilter(self, obj, event):
+        if obj is self.video and event.type() == QEvent.Resize:
+            self._relayout_overlays()
+        return super().eventFilter(obj, event)
+
+    def _relayout_overlays(self):
+        v = self.video
+        self.pill.adjustSize()
+        pw, ph = self.pill.width(), self.pill.height()
+        self.pill.move(max(0, (v.width() - pw) // 2), max(0, v.height() - ph - 14))
+        self.lbl_frame.adjustSize()
+        self.lbl_frame.move(12, 10)
+        self.btn_settings.move(v.width() - self.btn_settings.width() - 12, 10)
+        self.btn_update.adjustSize()
+        self.btn_update.move(v.width() - self.btn_settings.width() - 12
+                             - self.btn_update.width() - 6, 10)
+
+    # --- 右のクリップ管理パネル -------------------------------------------
+    def _build_sidebar(self):
+        self.side = QWidget()
+        self.side.setObjectName("side")
+        self.side.setFixedWidth(self.SIDE_W)
+        lay = QVBoxLayout(self.side)
+        lay.setContentsMargins(12, 14, 12, 12)
+        lay.setSpacing(10)
+
+        self.lbl_clips_head = QLabel("CLIPS")
+        self.lbl_clips_head.setProperty("class", "lab")
+        lay.addWidget(self.lbl_clips_head)
+        self.lbl_range = QLabel("")
+        self.lbl_range.setProperty("class", "range")
+        lay.addWidget(self.lbl_range)
+
+        self.clip_scroll = QScrollArea()
+        self.clip_scroll.setWidgetResizable(True)
+        self.clip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.clip_list = QWidget()
+        self.clip_list_lay = QVBoxLayout(self.clip_list)
+        self.clip_list_lay.setContentsMargins(0, 0, 0, 0)
+        self.clip_list_lay.setSpacing(4)
+        self.clip_list_lay.addStretch(1)
+        self.clip_scroll.setWidget(self.clip_list)
+        lay.addWidget(self.clip_scroll, 1)
+
+        self.btn_preview = QPushButton("▶#  " + tr("btn_preview"))
+        self.btn_preview.setObjectName("preview")
+        self.btn_preview.setToolTip(tr("tip_preview"))
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.clicked.connect(self.toggle_preview)
+        lay.addWidget(self.btn_preview)
+        self.btn_clear_range = QPushButton(tr("btn_clear"))
+        self.btn_clear_range.setToolTip(tr("tip_clear"))
+        self.btn_clear_range.setCursor(Qt.PointingHandCursor)
+        self.btn_clear_range.clicked.connect(self.on_clear_clicked)
+        lay.addWidget(self.btn_clear_range)
+        self.lbl_out_len = QLabel("")
+        self.lbl_out_len.setProperty("class", "range")
+        lay.addWidget(self.lbl_out_len)
+        self.side.setVisible(False)
+
+    def _refresh_clip_panel(self):
+        """クリップ一覧を作り直し、IN/OUT かクリップがあるときだけパネルを出す。"""
+        show = bool(self.segments) or self.in_frame is not None or self.out_frame is not None
+        self.side.setVisible(show and self.reader is not None)
+        self.lbl_clips_head.setText(f"CLIPS · {len(self.segments)}" if self.segments else "CLIPS")
+        # 既存の行を捨てる (末尾の stretch は残す)
+        while self.clip_list_lay.count() > 1:
+            item = self.clip_list_lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for i, (a, b, sp) in enumerate(self.segments):
+            self.clip_list_lay.insertWidget(i, self._make_clip_row(i, a, b, sp))
+        self.btn_preview.setEnabled(bool(self.segments) or
+                                    (self.in_frame is not None and self.out_frame is not None))
+        self.btn_preview.setProperty("active", self.preview_segs is not None)
+        self.btn_preview.style().unpolish(self.btn_preview)
+        self.btn_preview.style().polish(self.btn_preview)
+        if self.reader and self.segments:
+            total = sum((b - a + 1) / self.reader.fps / max(0.05, sp) for a, b, sp in self.segments)
+            self.lbl_out_len.setText(f"{tr('lbl_out_len')}  {fmt_time(total)}")
+        else:
+            self.lbl_out_len.setText("")
+
+    def _make_clip_row(self, idx, a, b, sp):
+        row = QWidget()
+        row.setObjectName("clipRow")
+        row.setAttribute(Qt.WA_StyledBackground, True)
+        row.setProperty("selected", idx == self.selected_clip)
+        row.setCursor(Qt.PointingHandCursor)
+        h = QHBoxLayout(row)
+        h.setContentsMargins(6, 4, 6, 4)
+        h.setSpacing(6)
+        play = QPushButton("▶")
+        play.setObjectName("rowplay")
+        play.setToolTip(tr("tip_row_play"))
+        play.setCursor(Qt.PointingHandCursor)
+        play.clicked.connect(lambda _=False, i=idx: self._play_clip(i))
+        h.addWidget(play)
+        lbl = QLabel(f"#{idx + 1}  {a}–{b}")
+        h.addWidget(lbl, 1)
+        cb = QComboBox()
+        cb.setToolTip(tr("tip_row_speed"))
+        for s in EXPORT_SPEEDS:
+            cb.addItem(f"{s:g}x", s)
+        cb.setCurrentIndex(min(range(len(EXPORT_SPEEDS)),
+                               key=lambda k: abs(EXPORT_SPEEDS[k] - sp)))
+        cb.currentIndexChanged.connect(
+            lambda k, i=idx: self._set_clip_speed(i, EXPORT_SPEEDS[k]))
+        h.addWidget(cb)
+        row.mousePressEvent = lambda ev, i=idx: self._select_clip(i)
+        return row
+
+    def _select_clip(self, idx):
+        """行クリックで選択 (IN/OUT がそのクリップの修正になる)。もう一度で解除。"""
+        self.selected_clip = None if self.selected_clip == idx else idx
+        self._update_marks()
+
+    def _play_clip(self, idx):
+        """行の ▶: そのクリップを選択し、先頭から再生。"""
+        if not (0 <= idx < len(self.segments)):
+            return
+        self.selected_clip = idx
+        self.in_frame = None
+        self.out_frame = None
+        self._update_marks()
+        self._jump_play(self.segments[idx][0])
+
+    def _set_clip_speed(self, idx, speed):
+        if not (0 <= idx < len(self.segments)):
+            return
+        a, b, _ = self.segments[idx]
+        self.segments[idx] = (a, b, float(speed))
+        QTimer.singleShot(0, self._update_marks)   # コンボ自身を作り直すので次のイベントで
 
     # --- 入力割り当て ----------------------------------------------------
     def _apply_bindings(self):
@@ -335,6 +555,7 @@ class MainWindow(QMainWindow):
         self._update_url = url
         self.btn_update.setText(f"🔔 v{version}")
         self.btn_update.setVisible(True)
+        self._relayout_overlays()
 
     def _open_update(self):
         QDesktopServices.openUrl(QUrl(self._update_url or RELEASES_PAGE))
@@ -363,12 +584,13 @@ class MainWindow(QMainWindow):
         self.btn_settings.setToolTip(tr("tip_settings"))
         self.btn_in.setToolTip(tr("tip_in"))
         self.btn_out.setToolTip(tr("tip_out"))
-        self.btn_add_clip.setToolTip(tr("tip_add_clip"))
-        self.btn_clip_prev.setToolTip(tr("tip_clip_prev"))
-        self.btn_clip_next.setToolTip(tr("tip_clip_next"))
+        self.btn_preview.setText("▶#  " + tr("btn_preview"))
         self.btn_preview.setToolTip(tr("tip_preview"))
         self._refresh_clear_button()
-        self.btn_export.setText(tr("btn_export"))
+        self.btn_export.setText("⤓ " + tr("btn_export"))
+        self.btn_export.setToolTip(tr("btn_export"))
+        self._refresh_clip_panel()
+        self._relayout_overlays()
         self.btn_export_ok.setText(tr("btn_export_ok"))
         self.btn_export_cancel.setText(tr("btn_export_cancel"))
         self.btn_update.setToolTip(tr("tip_update"))
@@ -383,8 +605,7 @@ class MainWindow(QMainWindow):
     def _set_controls_enabled(self, on: bool):
         # 音量(vol_slider)はファイル前から操作できるよう常に有効
         for w in (self.btn_prev, self.btn_play, self.btn_next, self.btn_slow,
-                  self.btn_fast, self.btn_in, self.btn_out, self.btn_add_clip,
-                  self.btn_clip_prev, self.btn_clip_next, self.btn_preview,
+                  self.btn_fast, self.btn_in, self.btn_out, self.btn_preview,
                   self.btn_clear_range, self.btn_export):
             w.setEnabled(on)
 
@@ -593,23 +814,22 @@ class MainWindow(QMainWindow):
             total_t = self.reader.index_to_time(self.reader.total_frames - 1)
             self.lbl_frame.setText(
                 f"{self.cur_index} / {self.reader.total_frames - 1}"
-                f"   {fmt_time(t)} / {fmt_time(total_t)}   {self.reader.fps:.0f}fps")
+                f"   {fmt_time(t)} / {fmt_time(total_t)}   {self.reader.fps:.0f}fps"
+                f"   ⌕ {self._zoom:.2f}x")
+            self.lbl_frame.adjustSize()
         self.lbl_speed.setText(f"{SPEEDS[self.speed_idx]:g}x")
         self._update_range_label()
 
     def _update_range_label(self):
         if self.selected_clip is not None:
-            a, b, sp = self.segments[self.selected_clip]
-            speed_text = "" if abs(sp - 1.0) < 1e-6 else f" {sp:g}x"
-            self.lbl_range.setText(
-                f"#{self.selected_clip + 1}/{len(self.segments)} [ {a} – {b} ]{speed_text}")
+            self.lbl_range.setText(tr("lbl_editing").replace("{n}", str(self.selected_clip + 1)))
+            return
+        if self.in_frame is None and self.out_frame is None:
+            self.lbl_range.setText("")
             return
         a = "·" if self.in_frame is None else str(self.in_frame)
         b = "·" if self.out_frame is None else str(self.out_frame)
-        text = f"[ {a} – {b} ]"
-        if self.segments:
-            text += f"  ×{len(self.segments)}"
-        self.lbl_range.setText(text)
+        self.lbl_range.setText(f"IN {a}   OUT {b}")
 
     # --- 再生 ------------------------------------------------------------
     def _on_video_click(self):
@@ -665,7 +885,9 @@ class MainWindow(QMainWindow):
             self.speed_idx = self._preview_saved_speed
             self._update_labels()
         self._preview_saved_speed = None
-        self.preview_segs = None
+        if self.preview_segs is not None:
+            self.preview_segs = None
+            self._refresh_clip_panel()
 
     def _apply_clip_speed(self, seg):
         """プレビュー中: クリップの書き出し速度に最も近い再生速度へ切り替える。"""
@@ -792,6 +1014,7 @@ class MainWindow(QMainWindow):
         self._apply_clip_speed(segs[0])
         self._show_frame(segs[0][0])
         self._play()
+        self._refresh_clip_panel()
 
     def _preview_jump(self, frame: int):
         """プレビュー中の次クリップへのジャンプ (プレビュー状態は維持)。"""
@@ -804,7 +1027,8 @@ class MainWindow(QMainWindow):
 
     # --- 拡大表示 -------------------------------------------------------
     def _on_zoom(self, z: float):
-        self.lbl_zoom.setText(f"{z:.2f}x")
+        self._zoom = z
+        self._update_labels()
 
     def _on_crop(self, rect):
         pass
@@ -961,35 +1185,7 @@ class MainWindow(QMainWindow):
             self.selected_clip = self.segments.index(sel)
         self._update_marks()
 
-    # --- クリップの選択 / 移動 / 修正 -----------------------------------
-    def prev_clip(self):
-        self._clip_step(-1)
-
-    def next_clip(self):
-        self._clip_step(1)
-
-    def _clip_step(self, delta: int):
-        if not self.reader:
-            return
-        # 未確定の IN–OUT が揃っていれば自動でクリップ化してから移動
-        if (self.selected_clip is None
-                and self.in_frame is not None and self.out_frame is not None):
-            self.segments.append((self.in_frame, self.out_frame, 1.0))
-            self.segments.sort()
-        self.in_frame = None
-        self.out_frame = None
-        if not self.segments:
-            self._update_marks()
-            return
-        n = len(self.segments)
-        if self.selected_clip is None:
-            idx = 0 if delta > 0 else n - 1
-        else:
-            idx = (self.selected_clip + delta) % n
-        self.selected_clip = idx
-        self._update_marks()
-        self._jump_play(self.segments[idx][0])   # クリップの IN へ移動して再生
-
+    # --- クリップの修正 --------------------------------------------------
     def _edit_clip(self, in_=None, out=None):
         """選択中クリップの IN/OUT を現在フレームで置き換える。"""
         a, b, sp = self.segments[self.selected_clip]
@@ -1035,6 +1231,7 @@ class MainWindow(QMainWindow):
 
     def _update_marks(self):
         self._update_range_label()
+        self._refresh_clip_panel()
         for bar in (self.filmstrip, self.waveform):
             bar.set_segments(self.segments, self.selected_clip)
             bar.set_marks(self.in_frame, self.out_frame)
