@@ -359,9 +359,8 @@ class MainWindow(QMainWindow):
     QWidget#side QPushButton#preview { background: #0d1118; color: #00e5ff; border: 1px solid #00e5ff99; font-weight: 700; }
     QWidget#side QPushButton#preview:hover { background: #101826; border-color: #00e5ff; }
     QWidget#side QPushButton#preview[active="true"] { background: #00e5ff; color: #07070c; }
-    QPushButton#sidetab { background: #0e1117; border: 1px solid #2a3344; border-right: none;
-                          border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding: 0; }
-    QPushButton#sidetab:hover { background: #141924; border-color: #4a5670; }
+    QPushButton#sidetab { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 0; }
+    QPushButton#sidetab:hover { background: rgba(255,255,255,18); }
 
     QWidget#side QScrollArea { border: none; background: transparent; }
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
@@ -378,6 +377,7 @@ class MainWindow(QMainWindow):
         outer.setSpacing(0)
 
         left = QWidget()
+        self.left_pane = left
         root = QVBoxLayout(left)
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(0)
@@ -415,6 +415,9 @@ class MainWindow(QMainWindow):
         outer.addWidget(self.side)
 
         self.setCentralWidget(central)
+        self.side_tab.setParent(central)      # 映像と境目の線の間 (余白) に重ねる
+        self.side_tab.raise_()
+        central.installEventFilter(self)
         self._set_controls_enabled(False)
         QTimer.singleShot(0, self._lock_min_width)
 
@@ -566,6 +569,8 @@ class MainWindow(QMainWindow):
     def eventFilter(self, obj, event):
         if obj is self.video and event.type() == QEvent.Resize:
             self._relayout_overlays()
+        elif obj is self.centralWidget() and event.type() == QEvent.Resize:
+            QTimer.singleShot(0, self._relayout_overlays)
         return super().eventFilter(obj, event)
 
     def _relayout_overlays(self):
@@ -573,8 +578,14 @@ class MainWindow(QMainWindow):
         self.lbl_frame.adjustSize()
         self.lbl_frame.move(12, 10)
         self.btn_settings.move(v.width() - self.btn_settings.width() - 12, 10)
-        self.side_tab.move(v.width() - self.side_tab.width(), (v.height() - self.side_tab.height()) // 2)
-        self.side_tab.raise_()
+        # タブ: 左ペインの右端 (= 境目の線) にくっつけ、映像の縦中央に
+        central = self.centralWidget()
+        if central is not None and self.side_tab.parent() is central:
+            x = self.left_pane.geometry().right() + 1 - self.side_tab.width()
+            gy = v.mapToGlobal(QPoint(0, (v.height() - self.side_tab.height()) // 2)).y()
+            y = central.mapFromGlobal(QPoint(0, gy)).y()
+            self.side_tab.move(max(0, x), max(0, y))
+            self.side_tab.raise_()
         self.btn_update.adjustSize()
         self.btn_update.move(v.width() - self.btn_settings.width() - 12
                              - self.btn_update.width() - 6, 10)
@@ -634,7 +645,7 @@ class MainWindow(QMainWindow):
 
     def _build_side_tab(self):
         """パネルの右端に常に見える細いタブ。クリックで開閉、閉じているときはクリップ数を表示。"""
-        # 閉じているとき: 映像の右端に重ねる縦長タブ (レイアウトを崩さない → 左右の余白が対称)
+        # 境目の線にくっつく縦長タブ (レイアウトを崩さない → 左右の余白が対称)
         self.side_tab = QPushButton(self.video)
         self.side_tab.setObjectName("sidetab")
         self.side_tab.setCursor(Qt.PointingHandCursor)
