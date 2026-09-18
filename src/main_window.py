@@ -47,13 +47,14 @@ def fmt_time(sec: float) -> str:
     return f"{int(m):02d}:{s:05.2f}"
 
 
-class WedgeVolumeSlider(QWidget):
-    """音量スライダー。横向きの三角形(ウェッジ)で小→大を視覚化する。"""
+class LevelVolumeSlider(QWidget):
+    """音量スライダー。HUD のレベルメーターのような縦バーの列で 小→大 を表す。"""
     valueChanged = Signal(int)
+    BARS = 12
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(62, 24)   # 他のボタンと同じ横幅
+        self.setFixedSize(74, 24)
         self.setCursor(Qt.PointingHandCursor)
         self._value = 80
 
@@ -67,27 +68,23 @@ class WedgeVolumeSlider(QWidget):
             self.valueChanged.emit(v)
         self.update()
 
-    def _wedge_path(self):
-        w, h = self.width(), self.height()
-        path = QPainterPath()
-        path.moveTo(0, h - 1)
-        path.lineTo(w - 1, 1)
-        path.lineTo(w - 1, h - 1)
-        path.closeSubpath()
-        return path
-
     def paintEvent(self, event):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing, True)
-        path = self._wedge_path()
-        p.fillPath(path, QColor("#33363c"))           # 全体(暗)
-        fill_w = self._value / 100.0 * self.width()
-        p.save()
-        p.setClipRect(0, 0, int(fill_w), self.height())
-        p.fillPath(path, QColor("#3fb6c8"))            # 音量ぶん(明)
-        p.restore()
-        p.setPen(QPen(QColor("#5a5e66"), 1))
-        p.drawPath(path)
+        p.setRenderHint(QPainter.Antialiasing, False)
+        w, h = self.width(), self.height()
+        gap = 2
+        bw = (w - gap * (self.BARS - 1)) / self.BARS
+        lit = self._value / 100.0 * self.BARS
+        for i in range(self.BARS):
+            x = int(round(i * (bw + gap)))
+            bh = int(round(6 + (h - 8) * (i + 1) / self.BARS))   # 右ほど高い
+            y = h - 1 - bh
+            if i + 1 <= lit + 0.5:
+                p.fillRect(x, y, max(1, int(bw)), bh, QColor("#00e5ff"))
+            else:
+                p.fillRect(x, y, max(1, int(bw)), bh, QColor("#1c2431"))
+        p.setPen(QPen(QColor(0, 229, 255, 70), 1))
+        p.drawLine(0, h - 1, w, h - 1)
 
     def _set_from_x(self, x):
         self.setValue(round(x / max(1, self.width()) * 100))
@@ -105,6 +102,20 @@ class WedgeVolumeSlider(QWidget):
     def wheelEvent(self, event):
         self.setValue(self._value + (5 if event.angleDelta().y() > 0 else -5))
         event.accept()
+
+
+class ToolbarSep(QWidget):
+    """ツールバーの区切り線 (スタイルシートに頼らず自前で描く)。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(9, 24)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        x = self.width() // 2
+        p.setPen(QPen(QColor(0, 229, 255, 60), 1))
+        p.drawLine(x, 1, x, self.height() - 2)
 
 
 class MainWindow(QMainWindow):
@@ -146,6 +157,8 @@ class MainWindow(QMainWindow):
         self._play_frame0 = 0
         self._pending = None   # 表示時刻待ちの先読みフレーム
         self._stop_at = None   # クリップ単体再生の停止位置 (OUT)
+        self._playing_clip = None      # 行の ▶ で再生中のクリップ index
+        self._clip_saved_speed = None  # その再生前の速度 (停止時に戻す)
         self.in_frame = None
         self.out_frame = None
         self.volume = float(self.settings.value("volume", 0.8, float))
@@ -322,7 +335,7 @@ class MainWindow(QMainWindow):
         self.lbl_speed.setMinimumWidth(44)
         self.lbl_speed.clicked.connect(self._pick_speed)
         self.btn_fast = self._pill_button("faster", tr("tip_faster"), lambda: self.change_speed(1))
-        self.vol_slider = WedgeVolumeSlider()
+        self.vol_slider = LevelVolumeSlider()
         self.vol_slider.setToolTip(tr("tip_volume"))
         self.vol_slider.setValue(int(self.volume * 100))
         self.vol_slider.valueChanged.connect(self._on_volume)
@@ -338,14 +351,22 @@ class MainWindow(QMainWindow):
                                            "#7a7040", size=18))
         self.btn_export.setIconSize(QSize(18, 18))
         self.btn_export.setObjectName("export")
-        self.btn_export_ok = self._pill_button(tr("btn_export_ok"), tr("btn_export_ok"),
+        self.btn_export_ok = self._pill_button(None, tr("tip_export_ok"),
                                                self.confirm_export, text=True)
+        self.btn_export_ok.setText(tr("btn_export_ok"))
+        self.btn_export_ok.setIcon(icons.icon("export", icons.ICON_ON_YELLOW, icons.ICON_ON_YELLOW,
+                                              "#7a7040", size=18))
+        self.btn_export_ok.setIconSize(QSize(18, 18))
         self.btn_export_ok.setObjectName("export")
         self.btn_export_ok.setVisible(False)
-        self.btn_export_cancel = self._pill_button(tr("btn_export_cancel"), tr("btn_export_cancel"),
+        self.btn_export_cancel = self._pill_button(None, tr("tip_export_cancel"),
                                                    self.cancel_export, text=True)
+        self.btn_export_cancel.setText(tr("btn_export_cancel"))
+        self.btn_export_cancel.setIcon(icons.icon("clear", size=14))
+        self.btn_export_cancel.setIconSize(QSize(14, 14))
         self.btn_export_cancel.setObjectName("export_cancel")
         self.btn_export_cancel.setVisible(False)
+        self.export_orient = "v"            # "v" = 9:16 縦型 / "h" = 16:9 横型
 
         for w in (self.btn_open, self._sep(), self.btn_prev, self.btn_play, self.btn_next,
                   self._sep(), self.btn_slow, self.lbl_speed, self.btn_fast,
@@ -393,9 +414,7 @@ class MainWindow(QMainWindow):
                 self._sync_audio()
 
     def _sep(self):
-        f = QFrame(self.pill)
-        f.setObjectName("sep")
-        return f
+        return ToolbarSep(self.pill)
 
     def _pill_button(self, icon_name, tooltip, slot, repeat=False, text=False):
         b = QPushButton()
@@ -511,10 +530,12 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(6, 4, 6, 4)
         h.setSpacing(6)
         play = QPushButton()
-        play.setIcon(icons.icon("play", icons.ICON_ACCENT, "#07070c", size=14))
+        now_playing = self.playing and self._playing_clip == idx
+        play.setIcon(icons.icon("pause" if now_playing else "play",
+                                icons.ICON_ACCENT, "#07070c", size=14))
+        play.setToolTip(tr("tip_row_stop") if now_playing else tr("tip_row_play"))
         play.setIconSize(QSize(14, 14))
         play.setObjectName("rowplay")
-        play.setToolTip(tr("tip_row_play"))
         play.setCursor(Qt.PointingHandCursor)
         play.clicked.connect(lambda _=False, i=idx: self._play_clip(i))
         h.addWidget(play)
@@ -549,15 +570,25 @@ class MainWindow(QMainWindow):
         self._update_marks()
 
     def _play_clip(self, idx):
-        """行の ▶: そのクリップを選択し、先頭から再生。"""
+        """行の ▶: そのクリップを選択し、そのクリップの速度で先頭から再生。
+        再生中にもう一度押すと停止。"""
         if not (0 <= idx < len(self.segments)):
             return
+        if self.playing and self._playing_clip == idx:
+            self._pause()
+            return
+        self._pause()
         self.selected_clip = idx
         self.in_frame = None
         self.out_frame = None
+        self._clip_saved_speed = self.speed_idx
+        self._apply_clip_speed(self.segments[idx])
+        self._playing_clip = idx
         self._update_marks()
         self._stop_at = self.segments[idx][1]      # OUT で止める
         self._jump_play(self.segments[idx][0])
+        self._playing_clip = idx                   # _jump_play 内の _pause で消えるので戻す
+        self._refresh_clip_panel()
 
     def _set_clip_speed(self, idx, speed):
         if not (0 <= idx < len(self.segments)):
@@ -943,6 +974,13 @@ class MainWindow(QMainWindow):
     def _pause(self):
         self.playing = False
         self._stop_at = None
+        if self._playing_clip is not None:         # 行の ▶ 再生を終了 → 速度を戻す
+            self._playing_clip = None
+            if self._clip_saved_speed is not None:
+                self.speed_idx = self._clip_saved_speed
+                self._clip_saved_speed = None
+                self._update_labels()
+            QTimer.singleShot(0, self._refresh_clip_panel)
         self.play_timer.stop()
         self.btn_play.setIcon(self._icon_play)
         self._pending = None
@@ -1325,11 +1363,22 @@ class MainWindow(QMainWindow):
 
     # --- 縦型書き出しフロー ---------------------------------------------
     def begin_export(self):
-        """縦型枠を画面に出して配置モードへ。"""
+        """縦型 / 横型 を選んでから、切り出し枠を画面に出して配置モードへ。"""
         if not self.reader:
             return
+        menu = QMenu(self)
+        act_v = menu.addAction(tr("menu_export_v"))
+        act_h = menu.addAction(tr("menu_export_h"))
+        pos = self.btn_export.mapToGlobal(self.btn_export.rect().topLeft())
+        chosen = menu.exec(pos)
+        if chosen is None:
+            return
+        self.export_orient = "h" if chosen is act_h else "v"
         self._pause()
+        self.video.set_crop_aspect(16.0 / 9.0 if self.export_orient == "h" else 9.0 / 16.0)
         self.video.start_crop()
+        label = tr("menu_export_h") if self.export_orient == "h" else tr("menu_export_v")
+        self.btn_export_ok.setText(f"{tr('btn_export_ok')}  ·  {label}")
         self.btn_export.setVisible(False)
         self.btn_export_ok.setVisible(True)
         self.btn_export_cancel.setVisible(True)
@@ -1371,7 +1420,8 @@ class MainWindow(QMainWindow):
         x, y, w, h = self.video.crop_rect
         crop_text = f"{w} x {h}  ({x},{y})"
 
-        dlg = ExportDialog(self, crop_text, segs, self.reader.fps)
+        dlg = ExportDialog(self, crop_text, segs, self.reader.fps,
+                           horizontal=(self.export_orient == "h"))
         if dlg.exec() != QDialog.Accepted:
             return
         out_w, out_h = dlg.resolution()
@@ -1380,7 +1430,8 @@ class MainWindow(QMainWindow):
         segs = [(a, b, sp) for (a, b, _), sp in zip(segs, dlg.speeds())]
         self._store_clip_speeds(segs)
 
-        default_name = os.path.splitext(os.path.basename(self.reader.path))[0] + "_vertical.mp4"
+        suffix = "_wide.mp4" if self.export_orient == "h" else "_vertical.mp4"
+        default_name = os.path.splitext(os.path.basename(self.reader.path))[0] + suffix
         save_dir = self.settings.value("last_save_dir", "", str) \
             or self.settings.value("last_open_dir", "", str)
         start_path = os.path.join(save_dir, default_name) if save_dir else default_name
@@ -1490,16 +1541,20 @@ class MainWindow(QMainWindow):
 
 
 class ExportDialog(QDialog):
-    PRESETS = [("1080 x 1920 (FHD)", 1080, 1920),
-               ("720 x 1280 (HD)", 720, 1280),
-               ("1440 x 2560 (QHD)", 1440, 2560)]
+    PRESETS_V = [("1080 x 1920 (FHD)", 1080, 1920),
+                 ("720 x 1280 (HD)", 720, 1280),
+                 ("1440 x 2560 (QHD)", 1440, 2560)]
+    PRESETS_H = [("1920 x 1080 (FHD)", 1920, 1080),
+                 ("1280 x 720 (HD)", 1280, 720),
+                 ("2560 x 1440 (QHD)", 2560, 1440)]
 
     # CRF18 のゲーム映像でよくある映像ビットレートの目安 (Mbps)。内容次第で上下する
     EST_MBPS = {1080: 11.0, 720: 6.0, 1440: 20.0}
 
-    def __init__(self, parent=None, crop_text="", segs=None, fps=30.0):
+    def __init__(self, parent=None, crop_text="", segs=None, fps=30.0, horizontal=False):
         """segs: [(in_frame, out_frame, speed), ...]。各クリップの速度をここで決める。"""
         super().__init__(parent)
+        self.PRESETS = self.PRESETS_H if horizontal else self.PRESETS_V
         self.setWindowTitle(tr("export_settings_title"))
         self._segs = list(segs or [])
         self._fps = max(1e-6, float(fps))
@@ -1578,8 +1633,8 @@ class ExportDialog(QDialog):
         if duration <= 0:
             self.lbl_est.setText("-")
             return
-        _, w, _ = self.PRESETS[self.combo.currentIndex()]
-        mbps = self.EST_MBPS.get(w, 10.0) + 0.15   # 映像 + AAC音声
+        _, w, h = self.PRESETS[self.combo.currentIndex()]
+        mbps = self.EST_MBPS.get(min(w, h), 10.0) + 0.15   # 映像 + AAC音声 (短辺で目安)
         mid = mbps * duration / 8                  # MB
         self.lbl_est.setText(f"~{mid * 0.5:.0f} – {mid * 1.5:.0f} MB")
 

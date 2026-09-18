@@ -81,8 +81,15 @@ T = {
     # button texts
     "btn_clear":         {"en": "Clear all",          "ja": "全クリア"},
     "btn_undo_clear":    {"en": "Undo",               "ja": "取り消す"},
-    "btn_export":        {"en": "Export vertical",    "ja": "縦型動画書き出し"},
-    "btn_export_ok":     {"en": "Export this range",  "ja": "この範囲で書き出し"},
+    "btn_export":        {"en": "Export clip",        "ja": "動画書き出し"},
+    "btn_export_ok":     {"en": "Export this area",   "ja": "この範囲で書き出し"},
+    "tip_export_ok":     {"en": "Export the framed area of the clips (opens the settings dialog)",
+                          "ja": "枠で囲んだ範囲をクリップごとに書き出す（設定画面が開きます）"},
+    "tip_export_cancel": {"en": "Leave export mode without exporting",
+                          "ja": "書き出しをやめて枠を消す"},
+    "menu_export_v":     {"en": "Vertical 9:16 (Shorts / TikTok)", "ja": "縦型 9:16（ショート / TikTok）"},
+    "menu_export_h":     {"en": "Horizontal 16:9 (YouTube / X)",   "ja": "横型 16:9（YouTube / X）"},
+    "tip_row_stop":      {"en": "Stop", "ja": "停止"},
     "btn_export_cancel": {"en": "Cancel",             "ja": "キャンセル"},
     # video placeholder
     "placeholder": {"en": "Click   or   Drag & Drop   to open a video",
@@ -121,8 +128,8 @@ T = {
     "chk_audio":      {"en": "Include audio",     "ja": "音声を含める"},
     "chk_transition": {"en": "Fade transition between clips",
                        "ja": "クリップ間にフェードのトランジション"},
-    "export_note":    {"en": "Centers the selection and adds black bars to make it vertical.",
-                       "ja": "選択範囲を中央に配置し、上下に黒帯を付けて縦型にします。"},
+    "export_note":    {"en": "The framed area is scaled to the output size (black bars if needed).",
+                       "ja": "枠で囲んだ範囲を出力サイズに合わせます（必要なら黒帯）。"},
     # settings (shortcut) dialog
     "settings_title":   {"en": "Settings",          "ja": "設定"},
     "language":         {"en": "Language",          "ja": "言語"},

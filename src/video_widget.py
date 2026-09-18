@@ -30,7 +30,7 @@ def make_thin_cross_cursor() -> QCursor:
     return QCursor(pm, c, c)
 
 # クロップ枠のアスペクト比 (幅 / 高さ) = 9:16 縦型
-CROP_ASPECT = 9.0 / 16.0
+CROP_ASPECT = 9.0 / 16.0   # 既定 (縦型)。set_crop_aspect で 16:9 にも切替
 HANDLE = 7          # コーナーハンドルの半径(描画)
 HIT = 16            # コーナー掴み判定の半径(widget px)
 MIN_H = 48          # クロップ枠の最小高さ(ソース px)
@@ -67,6 +67,7 @@ class VideoWidget(QWidget):
         # クロップ枠
         self.crop_mode = False
         self.crop_rect = None          # (x, y, w, h) ソース座標
+        self.crop_aspect = CROP_ASPECT  # 幅/高さ
         self._crop_drag = None         # 'move' | 'TL' | 'TR' | 'BL' | 'BR'
         self._drag_src0 = None         # ドラッグ開始時のソース座標
         self._rect0 = None             # ドラッグ開始時の crop_rect
@@ -79,12 +80,18 @@ class VideoWidget(QWidget):
         self.update()
 
     # --- クロップ枠 -----------------------------------------------------
+    def set_crop_aspect(self, aspect: float):
+        """切り出し枠の縦横比 (幅/高さ) を変える。変わったら枠は作り直す。"""
+        if abs(aspect - self.crop_aspect) > 1e-6:
+            self.crop_aspect = aspect
+            self.crop_rect = None
+
     def start_crop(self):
         if not self._img_w:
             return
         if self.crop_rect is None:
-            h = self._even(min(self._img_h * 0.9, self._img_w / CROP_ASPECT * 0.9))
-            w = self._even(h * CROP_ASPECT)
+            h = self._even(min(self._img_h * 0.9, self._img_w / self.crop_aspect * 0.9))
+            w = self._even(h * self.crop_aspect)
             x = self._even((self._img_w - w) / 2)
             y = self._even((self._img_h - h) / 2)
             self.crop_rect = (x, y, w, h)
@@ -336,13 +343,13 @@ class VideoWidget(QWidget):
         dx = abs(cur_src.x() - ox)
         dy = abs(cur_src.y() - oy)
         # 高さ基準でアスペクト維持 (縦長なので h が主)
-        new_h = max(dy, dx / CROP_ASPECT)
+        new_h = max(dy, dx / self.crop_aspect)
         # 画面内に収まる上限
         max_w = ox if is_left else (self._img_w - ox)
         max_h = oy if is_top else (self._img_h - oy)
-        new_h = min(new_h, max_h, max_w / CROP_ASPECT)
+        new_h = min(new_h, max_h, max_w / self.crop_aspect)
         new_h = max(MIN_H, new_h)
-        new_w = new_h * CROP_ASPECT
+        new_w = new_h * self.crop_aspect
 
         nx = ox - new_w if is_left else ox
         ny = oy - new_h if is_top else oy

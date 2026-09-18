@@ -82,15 +82,15 @@ clips appear as numbered yellow bands on the timeline.
 - In/Out and clips are **saved per video** automatically (~100 bytes each, in
   `%APPDATA%\FPSRePlayer\clips.json`) and restored when you reopen the same file
 
-### Vertical export
+### Export (vertical 9:16 or horizontal 16:9)
 
-1. Click **Export vertical** → a **9:16 frame** appears on the video
-2. Drag inside it to **move**, drag the corners to **resize** (always kept at 9:16)
+1. Click **Export clip** and pick **Vertical 9:16** or **Horizontal 16:9** → a crop frame appears on the video
+2. Drag inside it to **move**, drag the corners to **resize** (the aspect ratio is kept)
 3. Click **Export this range** → choose the **speed of each clip**, resolution / audio /
    **fade transition**, and save
 
-All clips are concatenated in chronological order into one clean vertical video
-(H.264 + AAC, no distortion or black bars). With 2+ clips you can enable a 0.3s
+All clips are concatenated in chronological order into one clean video
+(H.264 + AAC, no distortion; black bars only if the frame does not fit). With 2+ clips you can enable a 0.3s
 **fade transition** at clip boundaries. The dialog shows the output length and an
 estimated size range, a live size projection is shown while exporting, and Explorer
 opens on the output file when finished.
