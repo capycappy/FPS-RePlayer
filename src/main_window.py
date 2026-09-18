@@ -689,8 +689,8 @@ class MainWindow(QMainWindow):
                 item.widget().deleteLater()
         for i, (a, b, sp) in enumerate(self.segments):
             self.clip_list_lay.insertWidget(i, self._make_clip_row(i, a, b, sp))
-        if self.in_frame is not None or self.out_frame is not None:
-            self.clip_list_lay.insertWidget(len(self.segments), self._make_pending_row())
+        # 次のクリップの行は常に出す (何も打っていなくても「IN を打てば始まる」と分かるように)
+        self.clip_list_lay.insertWidget(len(self.segments), self._make_pending_row())
         self.btn_preview.setEnabled(bool(self.segments) or
                                     (self.in_frame is not None and self.out_frame is not None))
         self.btn_preview.setProperty("active", self.preview_segs is not None)
@@ -795,7 +795,13 @@ class MainWindow(QMainWindow):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(2)
         v.addWidget(row)
-        hint = QLabel(tr("lbl_pending_hint") if self.out_frame is None else tr("lbl_pending_hint_in"))
+        if self.in_frame is None and self.out_frame is None:
+            hint_key = "lbl_pending_hint_start"
+        elif self.out_frame is None:
+            hint_key = "lbl_pending_hint"
+        else:
+            hint_key = "lbl_pending_hint_in"
+        hint = QLabel(tr(hint_key))
         hint.setProperty("class", "hint")
         hint.setAlignment(Qt.AlignRight)
         v.addWidget(hint)

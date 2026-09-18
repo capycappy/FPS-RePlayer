@@ -92,6 +92,8 @@ T = {
     "tip_row_stop":      {"en": "Stop", "ja": "停止"},
     "lbl_pending_hint":  {"en": "set OUT →", "ja": "OUT を打つと確定"},
     "lbl_pending_hint_in": {"en": "set IN →", "ja": "IN を打つと確定"},
+    "lbl_pending_hint_start": {"en": "press I (or Ctrl-click the timeline) to set IN and start a clip",
+                               "ja": "I キー（またはタイムラインを Ctrl+クリック）で IN を打つと切り抜き開始"},
     "tip_pending_out":   {"en": "Press O or Alt-click the timeline to set the Out point",
                           "ja": "O キー、またはタイムラインを Alt+クリックで OUT を設定"},
     "tip_side_toggle":   {"en": "Show / hide the clip panel", "ja": "クリップパネルを開く / 閉じる"},
