@@ -54,7 +54,8 @@ class LevelVolumeSlider(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(self.BARS * self.BAR_W + (self.BARS - 1) * self.GAP, 24)
+        self.INSET = 7   # 左右の余白 (アイコンボタンの余白と同じ見え方に)
+        self.setFixedSize(self.BARS * self.BAR_W + (self.BARS - 1) * self.GAP + self.INSET * 2, 24)
         self.setCursor(Qt.PointingHandCursor)
         self._value = 80
 
@@ -78,14 +79,15 @@ class LevelVolumeSlider(QWidget):
         lit = self._value / 100.0 * self.BARS
         h_min, h_max = 4.0, 14.0        # 一番高いバーでもボタンのアイコン (20px) より低く
         for i in range(self.BARS):
-            x = i * (self.BAR_W + self.GAP)
+            x = self.INSET + i * (self.BAR_W + self.GAP)
             # 高さは等差 (端点は正確に h_min / h_max) → 上端が一直線に並ぶ
             bh = h_min + (h_max - h_min) * i / (self.BARS - 1)
             color = QColor("#00e5ff") if i + 1 <= lit + 0.5 else QColor("#1c2431")
             p.fillRect(QRectF(x, (h + h_max) / 2 - bh, self.BAR_W, bh), color)   # 下端揃え・全体は上下中央
 
     def _set_from_x(self, x):
-        self.setValue(round(x / max(1, self.width()) * 100))
+        inner = max(1, self.width() - self.INSET * 2)
+        self.setValue(round((x - self.INSET) / inner * 100))
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -339,7 +341,7 @@ class MainWindow(QMainWindow):
     QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
     QWidget#clipRow[pending="true"] { background: #101520; border: 1px dashed #f5c40099; }
     QWidget#clipRow QLineEdit[readOnly="true"] { color: #6f7a8a; border: 1px dashed #2a3344; }
-    QWidget#clipRow QLabel[class="hint"] { color: #f5c400; font-size: 10px; }
+    QWidget#side QLabel[class="hint"] { color: #f5c400; font-size: 10px; font-family: Consolas, "Cascadia Mono", monospace; }
     QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
     QWidget#clipRow QLineEdit { color: #d9f7ff; background: #0d1118; border: 1px solid #22304a; border-radius: 3px;
                                 padding: 1px 2px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px;
@@ -354,6 +356,7 @@ class MainWindow(QMainWindow):
                                            min-height: 18px; max-height: 18px; font-size: 10px; font-weight: 700;
                                            font-family: Consolas, "Cascadia Mono", monospace; }
     QWidget#clipRow QPushButton#rowspeed:hover { background: rgba(245,196,0,70); }
+    QWidget#clipRow QPushButton#rowspeed:disabled { color: #5a5230; background: rgba(245,196,0,14); }
     QWidget#clipRow QPushButton#rowspeed::menu-indicator { image: none; width: 0; }
     QWidget#side QPushButton { color: #d9f7ff; background: #141924; border: 1px solid #22304a;
                                border-radius: 4px; min-height: 28px; padding: 0 10px; font-size: 12px; }
@@ -761,6 +764,8 @@ class MainWindow(QMainWindow):
         h.addWidget(QLabel(f"#{len(self.segments) + 1}"))
         play = QPushButton()
         play.setObjectName("rowplay")
+        play.setIcon(icons.icon("play", "#3f4652", "#3f4652", "#3f4652", size=14))
+        play.setIconSize(QSize(14, 14))
         play.setEnabled(False)
         h.addWidget(play)
         maxframe = self.reader.total_frames - 1 if self.reader else 10 ** 9
@@ -780,10 +785,22 @@ class MainWindow(QMainWindow):
             f_out.setAlignment(Qt.AlignCenter); f_out.setFixedWidth(44)
             f_out.setToolTip(tr("tip_pending_out"))
         h.addWidget(f_out)
+        spd = QPushButton("1x")                       # 速度バッジの位置合わせ (まだ選べない)
+        spd.setObjectName("rowspeed")
+        spd.setEnabled(False)
+        h.addWidget(spd)
+        # ヒントは行の下に 1 行 (列の位置を崩さない)
+        box = QWidget()
+        v = QVBoxLayout(box)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(2)
+        v.addWidget(row)
         hint = QLabel(tr("lbl_pending_hint") if self.out_frame is None else tr("lbl_pending_hint_in"))
         hint.setProperty("class", "hint")
-        h.addWidget(hint)
-        return row
+        hint.setAlignment(Qt.AlignRight)
+        v.addWidget(hint)
+        box.setProperty("pending", True)
+        return box
 
     def _on_field_edited(self, idx, which, frame):
         """行の数値欄から IN/OUT を変更。並び順が変わる場合はドラッグ終了と同じ扱い。"""
@@ -1099,6 +1116,8 @@ class MainWindow(QMainWindow):
             bar.set_range(maxframe)
             bar.set_marks(None, None)
         self._restore_clips(path, maxframe)
+        self.side_open = bool(self.segments) or self.in_frame is not None or self.out_frame is not None
+        self.settings.setValue("side_open", self.side_open)
         self._set_controls_enabled(True)
         self._refresh_clip_panel()          # 動画を開いたらパネルと開閉タブを出す
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION} — {os.path.basename(path)}")
