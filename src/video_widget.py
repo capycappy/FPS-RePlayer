@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal
+from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import (QImage, QPainter, QPen, QColor, QPainterPath, QBrush,
                            QPixmap, QCursor)
 from PySide6.QtWidgets import QWidget
@@ -368,7 +369,22 @@ class VideoWidget(QWidget):
             return
         self._snap = (False, False)
 
-        # コーナーリサイズ (9:16 維持、対角コーナーを固定)
+        # Alt+ドラッグ: 中心を固定したまま拡大縮小 (他の編集ソフトと同じ)
+        if QApplication.keyboardModifiers() & Qt.AltModifier:
+            cx, cy = x0 + w0 / 2, y0 + h0 / 2
+            dx = abs(cur_src.x() - cx)
+            dy = abs(cur_src.y() - cy)
+            new_h = max(dy, dx / self.crop_aspect) * 2
+            max_h = min(cy, self._img_h - cy) * 2
+            max_w = min(cx, self._img_w - cx) * 2
+            new_h = min(new_h, max_h, max_w / self.crop_aspect)
+            new_h = max(MIN_H, new_h)
+            new_w = new_h * self.crop_aspect
+            self.crop_rect = (self._even(cx - new_w / 2), self._even(cy - new_h / 2),
+                              self._even(new_w), self._even(new_h))
+            return
+
+        # コーナーリサイズ (縦横比維持、対角コーナーを固定)
         is_left = self._crop_drag in ("TL", "BL")
         is_top = self._crop_drag in ("TL", "TR")
         ox = x0 if not is_left else x0 + w0      # 固定する対角の X

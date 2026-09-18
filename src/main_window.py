@@ -50,11 +50,11 @@ def fmt_time(sec: float) -> str:
 class LevelVolumeSlider(QWidget):
     """音量スライダー。HUD のレベルメーターのような縦バーの列で 小→大 を表す。"""
     valueChanged = Signal(int)
-    BARS = 12
+    BARS = 6
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(self.BARS * 4 + (self.BARS - 1) * 2, 24)
+        self.setFixedSize(self.BARS * self.BAR_W + (self.BARS - 1) * self.GAP, 24)
         self.setCursor(Qt.PointingHandCursor)
         self._value = 80
 
@@ -68,8 +68,8 @@ class LevelVolumeSlider(QWidget):
             self.valueChanged.emit(v)
         self.update()
 
-    BAR_W = 4
-    GAP = 2
+    BAR_W = 5
+    GAP = 3
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -199,9 +199,9 @@ class MainWindow(QMainWindow):
                                       max-width: 1000px; padding: 0 12px 0 8px; font-size: 12px; font-weight: 700; }
     QWidget#pill QPushButton#export:hover { border: none; background: #ffd633; }
     QWidget#pill QPushButton#export:disabled { border: none; background: #3a3620; color: #7a7040; }
-    QWidget#pill QPushButton#export_cancel { border: 1px solid #3a3e48; min-width: 0; max-width: 1000px;
-                                             padding: 0 12px; color: #dfe3ea; font-size: 12px; font-weight: 600; }
-    QWidget#pill QPushButton#speed { border: none; min-width: 0; max-width: 1000px; padding: 0 8px;
+    QWidget#pill QPushButton#export_cancel { border: 1px solid #3a3e48; }
+    QWidget#pill QPushButton#export_cancel:hover { border: 1px solid #ff4d4d; background: #2a1216; }
+    QWidget#pill QPushButton#speed { border: none; min-width: 40px; max-width: 40px; padding: 0 6px;
                                      font-size: 12px; font-weight: 700; color: #00e5ff;
                                      font-family: Consolas, "Cascadia Mono", monospace; border-radius: 6px; }
     QWidget#pill QPushButton#speed:hover { background: #121722; }
@@ -278,6 +278,8 @@ class MainWindow(QMainWindow):
         tl_box.setSpacing(0)
         tl_box.setContentsMargins(0, 0, 0, 0)
         for bar in (self.filmstrip, self.waveform):
+            bar.wheelEvent = lambda ev: (          # タイムライン上のホイールでも速度を上下
+                self.change_speed(1 if ev.angleDelta().y() > 0 else -1), ev.accept())
             bar.seekRequested.connect(self._on_seek)
             bar.inRequested.connect(self.set_in_at)
             bar.outRequested.connect(self.set_out_at)
@@ -341,12 +343,14 @@ class MainWindow(QMainWindow):
         self.btn_play.setIconSize(QSize(22, 22))
         self.btn_next = self._pill_button("step_fwd", tr("tip_next"), self.next_frame, repeat=True)
         self.btn_slow = self._pill_button("slower", tr("tip_slower"), lambda: self.change_speed(-1))
-        self.lbl_speed = QPushButton("1x")           # クリックで速度を直接選ぶ
+        self.lbl_speed = QPushButton("1x")           # クリックで速度を直接選ぶ / ホイールで上下
         self.lbl_speed.setObjectName("speed")
         self.lbl_speed.setToolTip(tr("tip_speed_pick"))
         self.lbl_speed.setCursor(Qt.PointingHandCursor)
-        self.lbl_speed.setMinimumWidth(44)
+        # 幅はスタイルシート側で固定 (min-width = max-width) → "0.25x" でも "8x" でも変わらない
         self.lbl_speed.clicked.connect(self._pick_speed)
+        self.lbl_speed.wheelEvent = lambda ev: (
+            self.change_speed(1 if ev.angleDelta().y() > 0 else -1), ev.accept())
         self.btn_fast = self._pill_button("faster", tr("tip_faster"), lambda: self.change_speed(1))
         self.vol_slider = LevelVolumeSlider()
         self.vol_slider.setToolTip(tr("tip_volume"))
@@ -374,9 +378,8 @@ class MainWindow(QMainWindow):
         self.btn_export_ok.setVisible(False)
         self.btn_export_cancel = self._pill_button(None, tr("tip_export_cancel"),
                                                    self.cancel_export, text=True)
-        self.btn_export_cancel.setText(tr("btn_export_cancel"))
-        self.btn_export_cancel.setIcon(icons.icon("clear", size=14))
-        self.btn_export_cancel.setIconSize(QSize(14, 14))
+        self.btn_export_cancel.setIcon(icons.icon("clear", size=16))
+        self.btn_export_cancel.setIconSize(QSize(16, 16))
         self.btn_export_cancel.setObjectName("export_cancel")
         self.btn_export_cancel.setVisible(False)
         self.export_orient = "v"            # "v" = 9:16 縦型 / "h" = 16:9 横型
@@ -706,7 +709,6 @@ class MainWindow(QMainWindow):
         self._refresh_clip_panel()
         self._relayout_overlays()
         self.btn_export_ok.setText(tr("btn_export_ok"))
-        self.btn_export_cancel.setText(tr("btn_export_cancel"))
         self.btn_update.setToolTip(tr("tip_update"))
         base = f"{APP_NAME}  v{APP_VERSION}"
         name = os.path.basename(self.reader.path) if self.reader else ""
@@ -929,7 +931,7 @@ class MainWindow(QMainWindow):
             self.lbl_frame.setText(
                 f"{self.cur_index} / {self.reader.total_frames - 1}"
                 f"   {fmt_time(t)} / {fmt_time(total_t)}   {self.reader.fps:.0f}fps"
-                f"   ⌕ {self._zoom:.2f}x")
+                + (f"   ⌕ {self._zoom:.2f}x" if self._zoom > 1.01 else ""))
             self.lbl_frame.adjustSize()
         self.lbl_speed.setText(f"{SPEEDS[self.speed_idx]:g}x")
         self._update_range_label()
@@ -1392,8 +1394,7 @@ class MainWindow(QMainWindow):
         self._pause()
         self.video.set_crop_aspect(16.0 / 9.0 if self.export_orient == "h" else 9.0 / 16.0)
         self.video.start_crop()
-        ratio = "16:9" if self.export_orient == "h" else "9:16"
-        self.btn_export_ok.setText(f"{tr('btn_export_ok')}  {ratio}")
+        self.btn_export_ok.setText(tr("btn_export_ok"))
         self.btn_export.setVisible(False)
         self.btn_export_ok.setVisible(True)
         self.btn_export_cancel.setVisible(True)
@@ -1577,22 +1578,16 @@ class ExportDialog(QDialog):
         if crop_text:
             form.addRow(tr("lbl_crop_range"), QLabel(crop_text))
 
-        # クリップ一覧 + クリップごとの速度
-        self._speed_combos = []
+        # クリップ一覧 (速度は CLIPS パネルで決めたものを表示するだけ)
         if self._segs:
             grid = QGridLayout()
             grid.setContentsMargins(0, 0, 0, 0)
             for i, (a, b, sp) in enumerate(self._segs):
                 dur = (b - a + 1) / self._fps
                 grid.addWidget(QLabel(f"#{i + 1}   {a}–{b}   ({fmt_time(dur)})"), i, 0)
-                cb = QComboBox()
-                for s in EXPORT_SPEEDS:
-                    cb.addItem(f"{s:g}x", s)
-                cb.setCurrentIndex(min(range(len(EXPORT_SPEEDS)),
-                                       key=lambda k: abs(EXPORT_SPEEDS[k] - sp)))
-                cb.currentIndexChanged.connect(self._update_est)
-                grid.addWidget(cb, i, 1)
-                self._speed_combos.append(cb)
+                lbl_sp = QLabel(f"{sp:g}x")
+                lbl_sp.setStyleSheet("color:#f5c400;font-weight:bold;")
+                grid.addWidget(lbl_sp, i, 1)
             grid.setColumnStretch(0, 1)
             inner = QWidget()
             inner.setLayout(grid)
@@ -1623,7 +1618,7 @@ class ExportDialog(QDialog):
         self.chk_transition.setChecked(False)
         self.chk_transition.setEnabled(len(self._segs) > 1)   # クリップ2個以上のときのみ
         form.addRow("", self.chk_transition)
-        note = QLabel(tr("export_note") + "\n" + tr("note_speed"))
+        note = QLabel(tr("export_note"))
         note.setWordWrap(True)
         form.addRow(note)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -1632,8 +1627,8 @@ class ExportDialog(QDialog):
         form.addRow(bb)
 
     def speeds(self):
-        """クリップごとの書き出し速度 (segs と同じ順)。"""
-        return [cb.currentData() for cb in self._speed_combos]
+        """クリップごとの書き出し速度 (segs と同じ順。CLIPS パネルで設定済みの値)。"""
+        return [sp for _, _, sp in self._segs]
 
     def _output_duration(self) -> float:
         """速度適用後の出力の長さ (秒)。"""

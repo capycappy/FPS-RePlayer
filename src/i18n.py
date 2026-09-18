@@ -82,7 +82,7 @@ T = {
     "btn_clear":         {"en": "Clear all",          "ja": "全クリア"},
     "btn_undo_clear":    {"en": "Undo",               "ja": "取り消す"},
     "btn_export":        {"en": "Export clip",        "ja": "動画書き出し"},
-    "btn_export_ok":     {"en": "Export this area",   "ja": "この範囲で書き出し"},
+    "btn_export_ok":     {"en": "Export",             "ja": "書き出し"},
     "tip_export_ok":     {"en": "Export the framed area of the clips (opens the settings dialog)",
                           "ja": "枠で囲んだ範囲をクリップごとに書き出す（設定画面が開きます）"},
     "tip_export_cancel": {"en": "Leave export mode without exporting",
@@ -90,8 +90,8 @@ T = {
     "menu_export_v":     {"en": "Vertical 9:16 (Shorts / TikTok)", "ja": "縦型 9:16（ショート / TikTok）"},
     "menu_export_h":     {"en": "Horizontal 16:9 (YouTube / X)",   "ja": "横型 16:9（YouTube / X）"},
     "tip_row_stop":      {"en": "Stop", "ja": "停止"},
-    "crop_hint":         {"en": "Drag the frame to move (snaps to center) / drag a corner to resize",
-                          "ja": "枠をドラッグで移動（中央に吸着）／ 角をドラッグで拡大縮小"},
+    "crop_hint":         {"en": "Drag to move (snaps to center) / drag a corner to resize / Alt+drag keeps the center",
+                          "ja": "ドラッグで移動（中央に吸着）／ 角をドラッグで拡大縮小／ Alt+ドラッグで中心固定"},
     "btn_export_cancel": {"en": "Cancel",             "ja": "キャンセル"},
     # video placeholder
     "placeholder": {"en": "Click   or   Drag & Drop   to open a video",
@@ -116,7 +116,7 @@ T = {
     "progress_label": {"en": "Exporting...",    "ja": "書き出し中..."},
     "progress_title": {"en": "Vertical export", "ja": "縦型書き出し"},
     # export settings dialog
-    "export_settings_title": {"en": "Vertical export settings", "ja": "縦型書き出し設定"},
+    "export_settings_title": {"en": "Export settings", "ja": "書き出し設定"},
     "lbl_crop_range": {"en": "Crop area",         "ja": "切り出し範囲"},
     "lbl_time_range": {"en": "Time range",        "ja": "時間範囲"},
     "lbl_resolution": {"en": "Output resolution", "ja": "出力解像度"},
