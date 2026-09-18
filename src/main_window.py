@@ -6,7 +6,7 @@ import subprocess
 import time
 import queue
 
-from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal, QSize
+from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal, QSize, QRectF
 from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen, QCursor,
                            QColor, QPainterPath, QAction, QDesktopServices)
 from PySide6.QtCore import QUrl
@@ -54,7 +54,7 @@ class LevelVolumeSlider(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(74, 24)
+        self.setFixedSize(self.BARS * 4 + (self.BARS - 1) * 2, 24)
         self.setCursor(Qt.PointingHandCursor)
         self._value = 80
 
@@ -68,23 +68,21 @@ class LevelVolumeSlider(QWidget):
             self.valueChanged.emit(v)
         self.update()
 
+    BAR_W = 4
+    GAP = 2
+
     def paintEvent(self, event):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing, False)
-        w, h = self.width(), self.height()
-        gap = 2
-        bw = (w - gap * (self.BARS - 1)) / self.BARS
+        p.setRenderHint(QPainter.Antialiasing, True)
+        h = self.height()
         lit = self._value / 100.0 * self.BARS
+        h_min, h_max = 5.0, float(h - 2)
         for i in range(self.BARS):
-            x = int(round(i * (bw + gap)))
-            bh = int(round(6 + (h - 8) * (i + 1) / self.BARS))   # 右ほど高い
-            y = h - 1 - bh
-            if i + 1 <= lit + 0.5:
-                p.fillRect(x, y, max(1, int(bw)), bh, QColor("#00e5ff"))
-            else:
-                p.fillRect(x, y, max(1, int(bw)), bh, QColor("#1c2431"))
-        p.setPen(QPen(QColor(0, 229, 255, 70), 1))
-        p.drawLine(0, h - 1, w, h - 1)
+            x = i * (self.BAR_W + self.GAP)
+            # 高さは等差 (端点は正確に h_min / h_max) → 上端が一直線に並ぶ
+            bh = h_min + (h_max - h_min) * i / (self.BARS - 1)
+            color = QColor("#00e5ff") if i + 1 <= lit + 0.5 else QColor("#1c2431")
+            p.fillRect(QRectF(x, h - 1 - bh, self.BAR_W, bh), color)
 
     def _set_from_x(self, x):
         self.setValue(round(x / max(1, self.width()) * 100))
@@ -301,6 +299,21 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central)
         self._set_controls_enabled(False)
+        QTimer.singleShot(0, self._lock_min_width)
+
+    def _lock_min_width(self):
+        """ツールバーの全ボタン (書き出しモードの分も含む) が収まる幅より狭くできないようにする。"""
+        lay = self.pill.layout()
+        total = lay.contentsMargins().left() + lay.contentsMargins().right()
+        n = 0
+        for i in range(lay.count()):
+            w = lay.itemAt(i).widget()
+            if w is None or w is self.btn_export:      # 通常時の書き出しボタンは ok/cancel より短い
+                continue
+            total += w.sizeHint().width()
+            n += 1
+        total += lay.spacing() * max(0, n - 1)
+        self.setMinimumWidth(total + self.SIDE_W + 40)
 
     # --- タイムライン下のツールバー (中央寄せ) -----------------------------
     def _build_toolbar(self):
@@ -461,6 +474,8 @@ class MainWindow(QMainWindow):
         self.lbl_range = QLabel("")
         self.lbl_range.setProperty("class", "range")
         self.lbl_range.setWordWrap(True)
+        self.lbl_range.setFixedHeight(34)          # 2行ぶんを常に確保 (行の位置が動かない)
+        self.lbl_range.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         lay.addWidget(self.lbl_range)
 
         self.clip_scroll = QScrollArea()
@@ -1377,8 +1392,8 @@ class MainWindow(QMainWindow):
         self._pause()
         self.video.set_crop_aspect(16.0 / 9.0 if self.export_orient == "h" else 9.0 / 16.0)
         self.video.start_crop()
-        label = tr("menu_export_h") if self.export_orient == "h" else tr("menu_export_v")
-        self.btn_export_ok.setText(f"{tr('btn_export_ok')}  ·  {label}")
+        ratio = "16:9" if self.export_orient == "h" else "9:16"
+        self.btn_export_ok.setText(f"{tr('btn_export_ok')}  {ratio}")
         self.btn_export.setVisible(False)
         self.btn_export_ok.setVisible(True)
         self.btn_export_cancel.setVisible(True)

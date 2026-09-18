@@ -68,6 +68,7 @@ class VideoWidget(QWidget):
         self.crop_mode = False
         self.crop_rect = None          # (x, y, w, h) ソース座標
         self.crop_aspect = CROP_ASPECT  # 幅/高さ
+        self._snap = (False, False)     # 直近のドラッグで中央にスナップしたか (x, y)
         self._crop_drag = None         # 'move' | 'TL' | 'TR' | 'BL' | 'BR'
         self._drag_src0 = None         # ドラッグ開始時のソース座標
         self._rect0 = None             # ドラッグ開始時の crop_rect
@@ -101,6 +102,7 @@ class VideoWidget(QWidget):
 
     def end_crop(self):
         self.crop_mode = False
+        self._snap = (False, False)
         self.setCursor(self._thin_cursor)
         self.update()
 
@@ -178,6 +180,19 @@ class VideoWidget(QWidget):
         inner = QPainterPath()
         inner.addRect(r)
         painter.drawPath(outer.subtracted(inner))
+        # 映像中央のガイド線 (スナップ中は明るく)
+        cx_w = self._src_to_widget(self._img_w / 2, 0).x()
+        cy_w = self._src_to_widget(0, self._img_h / 2).y()
+        scale, off_x, off_y = self._disp_geom()
+        top, bottom = off_y, off_y + self._img_h * scale
+        left, right = off_x, off_x + self._img_w * scale
+        for on, seg in ((self._snap[0], (cx_w, top, cx_w, bottom)),
+                        (self._snap[1], (left, cy_w, right, cy_w))):
+            pen = QPen(QColor(0, 229, 255, 230 if on else 90), 1)
+            if not on:
+                pen.setStyle(Qt.DashLine)
+            painter.setPen(pen)
+            painter.drawLine(QPointF(seg[0], seg[1]), QPointF(seg[2], seg[3]))
         # 枠
         painter.setBrush(Qt.NoBrush)
         painter.setPen(QPen(QColor("#ffd200"), 2))
@@ -190,11 +205,19 @@ class VideoWidget(QWidget):
                                     HANDLE * 2, HANDLE * 2))
         # サイズ表示と操作ヒント
         painter.setPen(QColor("#ffd200"))
+        ratio = "16:9" if self.crop_aspect > 1 else "9:16"
         painter.drawText(r.adjusted(4, -20, 0, 0), Qt.AlignLeft | Qt.AlignTop,
-                         f"{int(w)} x {int(h)} (9:16)")
-        painter.drawText(self.rect().adjusted(0, 10, 0, 0),
-                         Qt.AlignHCenter | Qt.AlignTop,
-                         "枠をドラッグで移動 / 角をドラッグで拡大縮小 → 「この範囲で書き出し」")
+                         f"{int(w)} x {int(h)} ({ratio})")
+        # 操作ヒントは下端中央 (左上の数値表示と重ならないように)
+        hint = tr("crop_hint")
+        fm = painter.fontMetrics()
+        tw = fm.horizontalAdvance(hint) + 20
+        hr = QRectF((self.width() - tw) / 2, self.height() - 30, tw, 22)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(7, 7, 12, 190))
+        painter.drawRoundedRect(hr, 4, 4)
+        painter.setPen(QColor("#ffd200"))
+        painter.drawText(hr, Qt.AlignCenter, hint)
 
     def _draw_magnifier(self, painter: QPainter):
         scale, off_x, off_y = self._disp_geom()
@@ -331,8 +354,19 @@ class VideoWidget(QWidget):
             dy = cur_src.y() - self._drag_src0.y()
             nx = max(0, min(self._img_w - w0, x0 + dx))
             ny = max(0, min(self._img_h - h0, y0 + dy))
+            # 映像の中央に近づいたら吸着 (ソース座標で約 12px 相当を画面スケールで換算)
+            scale = self._disp_geom()[0] or 1.0
+            thresh = 10.0 / scale
+            snap_x = abs((nx + w0 / 2) - self._img_w / 2) <= thresh
+            snap_y = abs((ny + h0 / 2) - self._img_h / 2) <= thresh
+            if snap_x:
+                nx = self._img_w / 2 - w0 / 2
+            if snap_y:
+                ny = self._img_h / 2 - h0 / 2
+            self._snap = (snap_x, snap_y)
             self.crop_rect = (self._even(nx), self._even(ny), w0, h0)
             return
+        self._snap = (False, False)
 
         # コーナーリサイズ (9:16 維持、対角コーナーを固定)
         is_left = self._crop_drag in ("TL", "BL")

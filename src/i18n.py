@@ -90,6 +90,8 @@ T = {
     "menu_export_v":     {"en": "Vertical 9:16 (Shorts / TikTok)", "ja": "縦型 9:16（ショート / TikTok）"},
     "menu_export_h":     {"en": "Horizontal 16:9 (YouTube / X)",   "ja": "横型 16:9（YouTube / X）"},
     "tip_row_stop":      {"en": "Stop", "ja": "停止"},
+    "crop_hint":         {"en": "Drag the frame to move (snaps to center) / drag a corner to resize",
+                          "ja": "枠をドラッグで移動（中央に吸着）／ 角をドラッグで拡大縮小"},
     "btn_export_cancel": {"en": "Cancel",             "ja": "キャンセル"},
     # video placeholder
     "placeholder": {"en": "Click   or   Drag & Drop   to open a video",
