@@ -359,9 +359,9 @@ class MainWindow(QMainWindow):
     QWidget#side QPushButton#preview { background: #0d1118; color: #00e5ff; border: 1px solid #00e5ff99; font-weight: 700; }
     QWidget#side QPushButton#preview:hover { background: #101826; border-color: #00e5ff; }
     QWidget#side QPushButton#preview[active="true"] { background: #00e5ff; color: #07070c; }
-    QPushButton#sidetab { background: #0e1117; border: none; border-left: 1px solid #1b2230; border-radius: 0;
-                          color: #f5c400; font-size: 10px; font-weight: 700; padding: 0; }
-    QPushButton#sidetab:hover { background: #141924; }
+    QPushButton#sidetab { background: #0d1118; border: 1px solid #00e5ff66; border-right: none;
+                          border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding: 0; }
+    QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
     QWidget#side QScrollArea { border: none; background: transparent; }
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
@@ -410,9 +410,9 @@ class MainWindow(QMainWindow):
         outer.addWidget(left, 1)
 
         self._build_sidebar()
-        outer.addWidget(self.side)
         self._build_side_tab()
-        outer.addWidget(self.side_tab)
+        outer.addWidget(self.side_tab_box)
+        outer.addWidget(self.side)
 
         self.setCentralWidget(central)
         self._set_controls_enabled(False)
@@ -493,8 +493,8 @@ class MainWindow(QMainWindow):
         self.btn_export_ok.setVisible(False)
         self.btn_export_cancel = self._pill_button(None, tr("tip_export_cancel"),
                                                    self.cancel_export)     # 他のアイコンボタンと同じ形
-        self.btn_export_cancel.setIcon(icons.icon("clear", size=16))
-        self.btn_export_cancel.setIconSize(QSize(16, 16))
+        self.btn_export_cancel.setIcon(icons.icon("close", size=18))
+        self.btn_export_cancel.setIconSize(QSize(18, 18))
         self.btn_export_cancel.setObjectName("export_cancel")
         self.btn_export_cancel.setVisible(False)
         self.export_orient = "v"            # "v" = 9:16 縦型 / "h" = 16:9 横型
@@ -619,7 +619,7 @@ class MainWindow(QMainWindow):
         self.btn_preview.clicked.connect(self.toggle_preview)
         lay.addWidget(self.btn_preview)
         self.btn_clear_range = QPushButton(tr("btn_clear"))
-        self.btn_clear_range.setIcon(icons.icon("clear", size=14))
+        self.btn_clear_range.setIcon(icons.icon("close", size=14))
         self.btn_clear_range.setIconSize(QSize(14, 14))
         self.btn_clear_range.setToolTip(tr("tip_clear"))
         self.btn_clear_range.setCursor(Qt.PointingHandCursor)
@@ -635,9 +635,17 @@ class MainWindow(QMainWindow):
         self.side_tab = QPushButton()
         self.side_tab.setObjectName("sidetab")
         self.side_tab.setCursor(Qt.PointingHandCursor)
-        self.side_tab.setFixedWidth(18)
+        self.side_tab.setFixedSize(22, 96)
         self.side_tab.setToolTip(tr("tip_side_toggle"))
         self.side_tab.clicked.connect(self.toggle_side)
+        # 縦方向の中央に置くための箱
+        self.side_tab_box = QWidget()
+        self.side_tab_box.setFixedWidth(22)
+        box = QVBoxLayout(self.side_tab_box)
+        box.setContentsMargins(0, 0, 0, 0)
+        box.addStretch(1)
+        box.addWidget(self.side_tab)
+        box.addStretch(1)
         self.side_open = bool(self.settings.value("side_open", True, bool))
         self._refresh_side_tab()
 
@@ -648,10 +656,12 @@ class MainWindow(QMainWindow):
 
     def _refresh_side_tab(self):
         n = len(self.segments)
-        self.side_tab.setIcon(icons.icon("panel_close" if self.side_open else "panel_open", size=14))
-        self.side_tab.setIconSize(QSize(14, 14))
-        self.side_tab.setText("" if self.side_open or not n else str(n))
-        self.side_tab.setVisible(self.reader is not None)
+        # パネルは右にあるので、開いているときは「＞」(右へ畳む)、閉じているときは「＜」(左へ開く)
+        self.side_tab.setIcon(icons.icon("panel_close" if self.side_open else "panel_open",
+                                         icons.ICON_ACCENT, "#ffffff", size=18))
+        self.side_tab.setIconSize(QSize(18, 18))
+        self.side_tab.setToolTip(tr("tip_side_toggle") + ("" if not n else f"  ({n})"))
+        self.side_tab_box.setVisible(self.reader is not None)
 
     def _refresh_clip_panel(self):
         """クリップ一覧を作り直し、パネルは開閉状態に従って出す。"""
@@ -1455,7 +1465,7 @@ class MainWindow(QMainWindow):
         else:
             self.btn_clear_range.setText(tr("btn_clear"))
             self.btn_clear_range.setToolTip(tr("tip_clear"))
-            self.btn_clear_range.setIcon(icons.icon("clear", size=14))
+            self.btn_clear_range.setIcon(icons.icon("close", size=14))
         self._refresh_clip_panel()
 
     def _undo_clear(self):
