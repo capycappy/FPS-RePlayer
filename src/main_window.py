@@ -492,7 +492,7 @@ class MainWindow(QMainWindow):
         self.btn_export_ok.setObjectName("export")
         self.btn_export_ok.setVisible(False)
         self.btn_export_cancel = self._pill_button(None, tr("tip_export_cancel"),
-                                                   self.cancel_export, text=True)
+                                                   self.cancel_export)     # 他のアイコンボタンと同じ形
         self.btn_export_cancel.setIcon(icons.icon("clear", size=16))
         self.btn_export_cancel.setIconSize(QSize(16, 16))
         self.btn_export_cancel.setObjectName("export_cancel")
@@ -1041,6 +1041,7 @@ class MainWindow(QMainWindow):
             bar.set_marks(None, None)
         self._restore_clips(path, maxframe)
         self._set_controls_enabled(True)
+        self._refresh_clip_panel()          # 動画を開いたらパネルと開閉タブを出す
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION} — {os.path.basename(path)}")
         self._add_recent(path)
         self._show_frame(0)
