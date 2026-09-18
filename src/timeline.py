@@ -152,7 +152,7 @@ class TimelineBar(QWidget):
         self._maxframe = 1
         self._in = None
         self._out = None
-        self._segments = []      # 確定済みクリップ [(a, b), ...]
+        self._segments = []      # 確定済みクリップ [(a, b, speed), ...]
         self._selected = None    # 選択中クリップの index
         self._drag_marker = None  # ドラッグ中の浮動マーカー ("in" | "out")
         self._drag_seg = None     # ドラッグ中のクリップ境界 (idx, "in"/"out")
@@ -230,7 +230,9 @@ class TimelineBar(QWidget):
 
         # 確定済みクリップ (黄色の帯 + 番号)。選択中は白で強調。
         # 枠は縦線のみ (上下のバーをまたいで1本につながって見えるように)
-        for i, (a, b) in enumerate(self._segments):
+        for i, seg in enumerate(self._segments):
+            a, b = seg[0], seg[1]
+            speed = seg[2] if len(seg) > 2 else 1.0
             xa = self._x_of_frame(a)
             xb = self._x_of_frame(b)
             sel = (i == self._selected)
@@ -242,7 +244,10 @@ class TimelineBar(QWidget):
             p.drawLine(int(xb), 0, int(xb), h)
             if self.SHOW_SEG_NUMBER and (xb - xa) > 14:
                 p.setPen(QColor("#ffffff") if sel else QColor("#ffd200"))
-                p.drawText(int(xa) + 4, 13, str(i + 1))
+                label = str(i + 1)
+                if abs(speed - 1.0) >= 1e-6 and (xb - xa) > 40:
+                    label += f" {speed:g}x"      # 書き出し速度 (等速以外)
+                p.drawText(int(xa) + 4, 13, label)
 
         # 編集中の IN/OUT 区間の塗り (両方セット時)
         if self._in is not None and self._out is not None and self._out > self._in:
@@ -309,8 +314,8 @@ class TimelineBar(QWidget):
     def _hit_seg_edge(self, x: float):
         """全クリップの境界線の掴み判定 (選択不要)。(idx, "in"/"out") or None"""
         best, bestd = None, self.GRAB + 1
-        for i, (a, b) in enumerate(self._segments):
-            for which, f in (("in", a), ("out", b)):
+        for i, seg in enumerate(self._segments):
+            for which, f in (("in", seg[0]), ("out", seg[1])):
                 d = abs(self._x_of_frame(f) - x)
                 if d <= self.GRAB and d < bestd:
                     best, bestd = (i, which), d
@@ -325,8 +330,8 @@ class TimelineBar(QWidget):
                     and self._in <= f <= self._out):
                 self.clearRangeRequested.emit()
             else:
-                for i, (a, b) in enumerate(self._segments):
-                    if a <= f <= b:
+                for i, seg in enumerate(self._segments):
+                    if seg[0] <= f <= seg[1]:
                         self.removeClipRequested.emit(i)
                         break
             event.accept()
@@ -381,7 +386,7 @@ class TimelineBar(QWidget):
         if self._drag_seg is not None and (event.buttons() & Qt.LeftButton):
             i, which = self._drag_seg
             if i < len(self._segments):
-                a, b = self._segments[i]
+                a, b = self._segments[i][0], self._segments[i][1]
                 f = self._frame_at(x)
                 if which == "in":            # そのクリップ内でクランプ
                     f = min(max(0, f), b - 1)

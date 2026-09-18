@@ -1,6 +1,7 @@
 """動画ごとの IN/OUT・クリップ位置の永続化。
 
 %APPDATA%/FPSRePlayer/clips.json に、動画の絶対パスをキーにして保存する。
+クリップは [in, out, speed] (speed は書き出し速度、省略時 1.0)。
 1エントリ約100バイトの軽量データ。最大 MAX_ENTRIES 件で古いものから間引く。
 """
 from __future__ import annotations
@@ -32,7 +33,7 @@ class ClipStore:
         return os.path.normcase(os.path.abspath(video_path))
 
     def get(self, video_path: str):
-        """{'segments': [[a,b],...], 'in': int|None, 'out': int|None} or None"""
+        """{'segments': [[a,b,speed],...], 'in': int|None, 'out': int|None} or None"""
         return self._data.get(self._key(video_path))
 
     def set(self, video_path: str, segments, in_frame, out_frame):
@@ -42,8 +43,12 @@ class ClipStore:
                 del self._data[key]
                 self._write()
             return
+        segs = []
+        for seg in segments:
+            speed = float(seg[2]) if len(seg) > 2 else 1.0
+            segs.append([int(seg[0]), int(seg[1]), speed])
         self._data[key] = {
-            "segments": [[int(a), int(b)] for a, b in segments],
+            "segments": segs,
             "in": None if in_frame is None else int(in_frame),
             "out": None if out_frame is None else int(out_frame),
             "ts": int(time.time()),

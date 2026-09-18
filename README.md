@@ -1,4 +1,4 @@
-# FPS RePlayer  (v1.2.2)
+# FPS RePlayer  (v1.3.0)
 
 English | [日本語](README.ja.md)
 
@@ -86,13 +86,20 @@ clips appear as numbered yellow bands on the timeline.
 
 1. Click **Export vertical** → a **9:16 frame** appears on the video
 2. Drag inside it to **move**, drag the corners to **resize** (always kept at 9:16)
-3. Click **Export this range** → choose resolution / audio / **fade transition** and save
+3. Click **Export this range** → choose the **speed of each clip**, resolution / audio /
+   **fade transition**, and save
 
 All clips are concatenated in chronological order into one clean vertical video
 (H.264 + AAC, no distortion or black bars). With 2+ clips you can enable a 0.3s
-**fade transition** at clip boundaries. The dialog shows an estimated size range,
-a live size projection is shown while exporting, and Explorer opens on the output
-file when finished.
+**fade transition** at clip boundaries. The dialog shows the output length and an
+estimated size range, a live size projection is shown while exporting, and Explorer
+opens on the output file when finished.
+
+**Per-clip speed:** every clip in the export dialog has its own speed (0.25× – 4×), so
+one video can mix a slow-motion kill and a fast-forwarded approach. Audio is stretched
+with its pitch preserved; slow motion repeats frames. The chosen speed is shown on the
+clip band (e.g. `2 0.5x`), saved with the clip, and **▶# preview** plays each clip at
+its own speed.
 
 ## Language & updates
 
@@ -146,7 +153,7 @@ src/
   player_engine.py  background prefetch decoder (smooth playback)
   audio_player.py   audio output (QAudioSink), varispeed
   timeline.py       filmstrip + waveform seek bar, clip bands
-  exporter.py       multi-clip vertical export, fade transition (worker thread)
+  exporter.py       multi-clip vertical export, per-clip speed, fade transition (worker thread)
   clip_store.py     per-video In/Out + clip persistence
   shortcuts.py      rebindable key/mouse settings dialog
   updater.py        startup update check (GitHub Releases)
@@ -163,8 +170,9 @@ tools/              icon generation scripts
   Designed for short clips (a few minutes).
 - Playback uses a background decode thread that prefetches frames into a queue; the UI
   just pulls and draws in sync with the audio clock, so decode time doesn't cause stutter.
-- Export uses a PyAV filter graph (`crop → scale(decrease) → pad`) with timestamps
-  rebased to 0 so the clip starts at its beginning.
+- Export uses a PyAV filter graph (`setpts → crop → scale(decrease) → pad → fps`) with
+  timestamps rebased to 0 so the clip starts at its beginning; per-clip speed scales the
+  timestamps and resamples to the output frame rate, and audio goes through `atempo`.
 
 ## License
 

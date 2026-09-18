@@ -13,12 +13,13 @@ from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QDialog, QComboBox, QCheckBox,
-    QDialogButtonBox, QFormLayout, QProgressDialog, QMenu,
+    QDialogButtonBox, QFormLayout, QProgressDialog, QMenu, QGridLayout,
+    QScrollArea,
 )
 
 from reader import VideoReader
 from video_widget import VideoWidget
-from exporter import ExportWorker
+from exporter import ExportWorker, EXPORT_SPEEDS
 from audio_player import AudioPlayer
 from player_engine import FramePrefetcher
 from timeline import FilmstripBar, WaveformBar, FilmstripWorker, WaveformWorker
@@ -132,9 +133,10 @@ class MainWindow(QMainWindow):
         self.film_thread = None
         self.film_worker = None
         self.cur_index = 0
-        self.segments = []            # 確定済みクリップ [(in, out), ...] 常に時系列順
+        self.segments = []            # 確定済みクリップ [(in, out, speed), ...] 常に時系列順
         self.selected_clip = None     # 選択中クリップの index (IN/OUTで修正対象)
         self.preview_segs = None      # プレビュー再生中のクリップ一覧 (None=通常再生)
+        self._preview_saved_speed = None  # プレビュー前の再生速度 (終了時に戻す)
         self.preview_idx = 0
         self._clear_backup = None     # 全クリアの取り消し用バックアップ
         self.speed_idx = SPEEDS.index(1.0)
@@ -597,9 +599,10 @@ class MainWindow(QMainWindow):
 
     def _update_range_label(self):
         if self.selected_clip is not None:
-            a, b = self.segments[self.selected_clip]
+            a, b, sp = self.segments[self.selected_clip]
+            speed_text = "" if abs(sp - 1.0) < 1e-6 else f" {sp:g}x"
             self.lbl_range.setText(
-                f"#{self.selected_clip + 1}/{len(self.segments)} [ {a} – {b} ]")
+                f"#{self.selected_clip + 1}/{len(self.segments)} [ {a} – {b} ]{speed_text}")
             return
         a = "·" if self.in_frame is None else str(self.in_frame)
         b = "·" if self.out_frame is None else str(self.out_frame)
@@ -650,11 +653,26 @@ class MainWindow(QMainWindow):
         self.play_timer.stop()
         self.btn_play.setText("▶")
         self._pending = None
-        self.preview_segs = None      # 一時停止でプレビューも終了
+        self._end_preview()           # 一時停止でプレビューも終了
         if self.producer:
             self.producer.stop()
         if self.audio:
             self.audio.stop()
+
+    def _end_preview(self):
+        """プレビューを終了し、クリップ速度で上書きしていた再生速度を戻す。"""
+        if self.preview_segs is not None and self._preview_saved_speed is not None:
+            self.speed_idx = self._preview_saved_speed
+            self._update_labels()
+        self._preview_saved_speed = None
+        self.preview_segs = None
+
+    def _apply_clip_speed(self, seg):
+        """プレビュー中: クリップの書き出し速度に最も近い再生速度へ切り替える。"""
+        target = seg[2] if len(seg) > 2 else 1.0
+        self.speed_idx = min(range(len(SPEEDS)),
+                             key=lambda i: abs(SPEEDS[i] - target))
+        self._update_labels()
 
     def _sync_audio(self):
         """現在位置・現在速度で音声を鳴らし直す (倍速/低速にも追従)。"""
@@ -690,7 +708,9 @@ class MainWindow(QMainWindow):
                     self._show_frame(end)
                     self._pause()          # 最後のクリップまで再生し終えた
                 else:
-                    self._preview_jump(self.preview_segs[self.preview_idx][0])
+                    nxt_seg = self.preview_segs[self.preview_idx]
+                    self._apply_clip_speed(nxt_seg)   # 次クリップの速度で再生
+                    self._preview_jump(nxt_seg[0])
                 return
 
         last = self.reader.total_frames - 1
@@ -747,7 +767,7 @@ class MainWindow(QMainWindow):
             self._sync_audio()
 
     def _on_seek(self, value: int):
-        self.preview_segs = None             # 手動シークでプレビューは解除
+        self._end_preview()                  # 手動シークでプレビューは解除
         self._show_frame(value)
         if self.playing:
             self._pending = None
@@ -766,8 +786,10 @@ class MainWindow(QMainWindow):
             return
         segs = self._export_segments()
         self._pause()
+        self._preview_saved_speed = self.speed_idx   # 各クリップの速度で再生し、終了時に戻す
         self.preview_segs = segs
         self.preview_idx = 0
+        self._apply_clip_speed(segs[0])
         self._show_frame(segs[0][0])
         self._play()
 
@@ -836,7 +858,7 @@ class MainWindow(QMainWindow):
             return
         if self.in_frame is None or self.out_frame is None:
             return
-        self.segments.append((self.in_frame, self.out_frame))
+        self.segments.append((self.in_frame, self.out_frame, 1.0))
         self.segments.sort()
         self.in_frame = None
         self.out_frame = None
@@ -903,14 +925,14 @@ class MainWindow(QMainWindow):
         """クリップ境界のドラッグ (選択不要)。ドラッグ中は並べ替えない。"""
         if not (0 <= idx < len(self.segments)):
             return
-        a, b = self.segments[idx]
+        a, b, sp = self.segments[idx]
         if which == "in":
             a = frame
         else:
             b = frame
         if a >= b:
             return
-        self.segments[idx] = (a, b)
+        self.segments[idx] = (a, b, sp)
         self._update_marks()
 
     def _on_seg_drag_finished(self):
@@ -935,7 +957,7 @@ class MainWindow(QMainWindow):
         # 未確定の IN–OUT が揃っていれば自動でクリップ化してから移動
         if (self.selected_clip is None
                 and self.in_frame is not None and self.out_frame is not None):
-            self.segments.append((self.in_frame, self.out_frame))
+            self.segments.append((self.in_frame, self.out_frame, 1.0))
             self.segments.sort()
         self.in_frame = None
         self.out_frame = None
@@ -953,14 +975,14 @@ class MainWindow(QMainWindow):
 
     def _edit_clip(self, in_=None, out=None):
         """選択中クリップの IN/OUT を現在フレームで置き換える。"""
-        a, b = self.segments[self.selected_clip]
+        a, b, sp = self.segments[self.selected_clip]
         if in_ is not None:
             a = in_
         if out is not None:
             b = out
         if a == b:
             return
-        tup = (min(a, b), max(a, b))
+        tup = (min(a, b), max(a, b), sp)
         self.segments[self.selected_clip] = tup
         self.segments.sort()
         self.selected_clip = self.segments.index(tup)   # ソート後も選択を追跡
@@ -979,11 +1001,12 @@ class MainWindow(QMainWindow):
         if not saved:
             return
         segs = []
-        for a, b in saved.get("segments", []):
-            a = max(0, min(int(a), maxframe))
-            b = max(0, min(int(b), maxframe))
+        for item in saved.get("segments", []):
+            a = max(0, min(int(item[0]), maxframe))
+            b = max(0, min(int(item[1]), maxframe))
+            sp = float(item[2]) if len(item) > 2 else 1.0   # 旧形式は速度なし
             if a < b:
-                segs.append((a, b))
+                segs.append((a, b, sp))
         self.segments = sorted(segs)
         iv, ov = saved.get("in"), saved.get("out")
         self.in_frame = None if iv is None else max(0, min(int(iv), maxframe))
@@ -1023,13 +1046,25 @@ class MainWindow(QMainWindow):
         self.btn_export_cancel.setVisible(False)
 
     def _export_segments(self):
-        """書き出し対象のクリップ一覧 (フレーム番号ペア, 時系列順)。"""
+        """書き出し対象のクリップ一覧 [(in, out, speed), ...] (時系列順)。"""
         segs = list(self.segments)
         if self.in_frame is not None and self.out_frame is not None:
-            segs.append((self.in_frame, self.out_frame))   # 未確定のIN–OUTも含める
+            segs.append((self.in_frame, self.out_frame, 1.0))   # 未確定のIN–OUTも含める
         if not segs:
-            segs = [(0, self.reader.total_frames - 1)]     # 未指定なら全体
+            segs = [(0, self.reader.total_frames - 1, 1.0)]     # 未指定なら全体
         return sorted(segs)
+
+    def _store_clip_speeds(self, segs):
+        """書き出しダイアログで決めた速度を確定済みクリップに書き戻す (自動保存される)。"""
+        speed_of = {(a, b): sp for a, b, sp in segs}
+        changed = False
+        for i, (a, b, sp) in enumerate(self.segments):
+            new = speed_of.get((a, b), sp)
+            if abs(new - sp) >= 1e-6:
+                self.segments[i] = (a, b, new)
+                changed = True
+        if changed:
+            self._update_marks()
 
     def confirm_export(self):
         if not self.reader or not self.video.crop_rect:
@@ -1037,19 +1072,15 @@ class MainWindow(QMainWindow):
         segs = self._export_segments()
         x, y, w, h = self.video.crop_rect
         crop_text = f"{w} x {h}  ({x},{y})"
-        total_frames = sum(b - a + 1 for a, b in segs)
-        range_text = (f"{len(segs)} : "
-                      + ", ".join(f"{a}–{b}" for a, b in segs[:4])
-                      + ("…" if len(segs) > 4 else "")
-                      + f"  ({fmt_time(total_frames / self.reader.fps)})")
 
-        dlg = ExportDialog(self, crop_text, range_text, len(segs) > 1,
-                           duration_sec=total_frames / self.reader.fps)
+        dlg = ExportDialog(self, crop_text, segs, self.reader.fps)
         if dlg.exec() != QDialog.Accepted:
             return
         out_w, out_h = dlg.resolution()
         include_audio = dlg.include_audio() and self.reader.has_audio
         transition = dlg.transition()
+        segs = [(a, b, sp) for (a, b, _), sp in zip(segs, dlg.speeds())]
+        self._store_clip_speeds(segs)
 
         default_name = os.path.splitext(os.path.basename(self.reader.path))[0] + "_vertical.mp4"
         save_dir = self.settings.value("last_save_dir", "", str) \
@@ -1062,7 +1093,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("last_save_dir", os.path.dirname(dst))
 
         time_segs = [(self.reader.index_to_time(a),
-                      self.reader.index_to_time(b + 1)) for a, b in segs]
+                      self.reader.index_to_time(b + 1), sp) for a, b, sp in segs]
         self.video.end_crop()
         self._exit_export_mode()
         self._run_export(dst, self.video.crop_rect, time_segs,
@@ -1168,16 +1199,47 @@ class ExportDialog(QDialog):
     # CRF18 のゲーム映像でよくある映像ビットレートの目安 (Mbps)。内容次第で上下する
     EST_MBPS = {1080: 11.0, 720: 6.0, 1440: 20.0}
 
-    def __init__(self, parent=None, crop_text="", range_text="",
-                 multi_clip=False, duration_sec=0.0):
+    def __init__(self, parent=None, crop_text="", segs=None, fps=30.0):
+        """segs: [(in_frame, out_frame, speed), ...]。各クリップの速度をここで決める。"""
         super().__init__(parent)
         self.setWindowTitle(tr("export_settings_title"))
-        self._duration = duration_sec
+        self._segs = list(segs or [])
+        self._fps = max(1e-6, float(fps))
         form = QFormLayout(self)
         if crop_text:
             form.addRow(tr("lbl_crop_range"), QLabel(crop_text))
-        if range_text:
-            form.addRow(tr("lbl_clips"), QLabel(range_text))
+
+        # クリップ一覧 + クリップごとの速度
+        self._speed_combos = []
+        if self._segs:
+            grid = QGridLayout()
+            grid.setContentsMargins(0, 0, 0, 0)
+            for i, (a, b, sp) in enumerate(self._segs):
+                dur = (b - a + 1) / self._fps
+                grid.addWidget(QLabel(f"#{i + 1}   {a}–{b}   ({fmt_time(dur)})"), i, 0)
+                cb = QComboBox()
+                for s in EXPORT_SPEEDS:
+                    cb.addItem(f"{s:g}x", s)
+                cb.setCurrentIndex(min(range(len(EXPORT_SPEEDS)),
+                                       key=lambda k: abs(EXPORT_SPEEDS[k] - sp)))
+                cb.currentIndexChanged.connect(self._update_est)
+                grid.addWidget(cb, i, 1)
+                self._speed_combos.append(cb)
+            grid.setColumnStretch(0, 1)
+            inner = QWidget()
+            inner.setLayout(grid)
+            if len(self._segs) > 6:          # 多いときはスクロール
+                scroll = QScrollArea()
+                scroll.setWidgetResizable(True)
+                scroll.setFrameShape(QScrollArea.NoFrame)
+                scroll.setWidget(inner)
+                scroll.setFixedHeight(6 * 30)
+                form.addRow(tr("lbl_clips"), scroll)
+            else:
+                form.addRow(tr("lbl_clips"), inner)
+
+        self.lbl_out_len = QLabel("-")
+        form.addRow(tr("lbl_out_len"), self.lbl_out_len)
         self.combo = QComboBox()
         for name, _, _ in self.PRESETS:
             self.combo.addItem(name)
@@ -1191,9 +1253,9 @@ class ExportDialog(QDialog):
         form.addRow("", self.chk_audio)
         self.chk_transition = QCheckBox(tr("chk_transition"))
         self.chk_transition.setChecked(False)
-        self.chk_transition.setEnabled(multi_clip)   # クリップ2個以上のときのみ
+        self.chk_transition.setEnabled(len(self._segs) > 1)   # クリップ2個以上のときのみ
         form.addRow("", self.chk_transition)
-        note = QLabel(tr("export_note"))
+        note = QLabel(tr("export_note") + "\n" + tr("note_speed"))
         note.setWordWrap(True)
         form.addRow(note)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -1201,13 +1263,26 @@ class ExportDialog(QDialog):
         bb.rejected.connect(self.reject)
         form.addRow(bb)
 
+    def speeds(self):
+        """クリップごとの書き出し速度 (segs と同じ順)。"""
+        return [cb.currentData() for cb in self._speed_combos]
+
+    def _output_duration(self) -> float:
+        """速度適用後の出力の長さ (秒)。"""
+        total = 0.0
+        for (a, b, _), sp in zip(self._segs, self.speeds()):
+            total += (b - a + 1) / self._fps / max(0.05, sp)
+        return total
+
     def _update_est(self):
-        if self._duration <= 0:
+        duration = self._output_duration()
+        self.lbl_out_len.setText(fmt_time(duration) if duration > 0 else "-")
+        if duration <= 0:
             self.lbl_est.setText("-")
             return
         _, w, _ = self.PRESETS[self.combo.currentIndex()]
         mbps = self.EST_MBPS.get(w, 10.0) + 0.15   # 映像 + AAC音声
-        mid = mbps * self._duration / 8            # MB
+        mid = mbps * duration / 8                  # MB
         self.lbl_est.setText(f"~{mid * 0.5:.0f} – {mid * 1.5:.0f} MB")
 
     def resolution(self):

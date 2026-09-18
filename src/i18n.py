@@ -103,7 +103,12 @@ T = {
     "lbl_crop_range": {"en": "Crop area",         "ja": "切り出し範囲"},
     "lbl_time_range": {"en": "Time range",        "ja": "時間範囲"},
     "lbl_resolution": {"en": "Output resolution", "ja": "出力解像度"},
-    "lbl_clips":      {"en": "Clips",             "ja": "クリップ"},
+    "lbl_clips":      {"en": "Clips / speed",     "ja": "クリップ / 速度"},
+    "lbl_out_len":    {"en": "Output length",     "ja": "出力の長さ"},
+    "note_speed":     {"en": "Speed is applied per clip. Audio keeps its pitch; "
+                             "slow motion repeats frames.",
+                       "ja": "速度はクリップごとに適用されます。音声は音程を保ったまま伸縮し、"
+                             "スローはコマを複製します。"},
     "lbl_est_size":   {"en": "Estimated size",    "ja": "推定サイズ"},
     "chk_audio":      {"en": "Include audio",     "ja": "音声を含める"},
     "chk_transition": {"en": "Fade transition between clips",

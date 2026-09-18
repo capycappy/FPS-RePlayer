@@ -1,3 +1,3 @@
 """アプリ名とバージョン (一元管理)。"""
 APP_NAME = "FPS RePlayer"
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.3.0"
