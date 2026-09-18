@@ -6,7 +6,7 @@ import subprocess
 import time
 import queue
 
-from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal
+from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal, QSize
 from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen, QCursor,
                            QColor, QPainterPath, QAction, QDesktopServices)
 from PySide6.QtCore import QUrl
@@ -25,6 +25,7 @@ from player_engine import FramePrefetcher
 from timeline import FilmstripBar, WaveformBar, FilmstripWorker, WaveformWorker
 from shortcuts import InputConfig, ShortcutDialog
 from clip_store import ClipStore
+import icons
 import i18n
 from i18n import tr
 
@@ -169,78 +170,74 @@ class MainWindow(QMainWindow):
     STYLE = """
     QMainWindow, QWidget#central { background: #0b0c0f; }
     QLabel { color: #cfd3dc; }
-    QToolTip { color: #e6e8ee; background: #1a1c22; border: 1px solid #3a3e48; }
+    QToolTip { color: #d9f7ff; background: #0d1118; border: 1px solid #00e5ff66; }
 
     /* タイムライン下のツールバー (中央寄せ・固定) */
     QWidget#bar { background: #0b0c0f; border-top: 1px solid #1b1e25; }
     QWidget#pill { background: transparent; }
-    QWidget#pill QPushButton { color: #dfe3ea; background: transparent; border: none;
-                               border-radius: 17px; min-width: 34px; max-width: 34px;
-                               min-height: 34px; max-height: 34px; font-size: 15px; }
-    QWidget#pill QPushButton:hover { background: rgba(255,255,255,28); }
-    QWidget#pill QPushButton:pressed { background: rgba(255,255,255,50); }
-    QWidget#pill QPushButton:disabled { color: #5c6270; }
-    QWidget#pill QPushButton#play { border: none; background: #ffffff; color: #0b0c0f; border-radius: 22px;
-                                    min-width: 44px; max-width: 44px; min-height: 44px;
-                                    max-height: 44px; font-size: 18px; }
-    QWidget#pill QPushButton#play:hover { border: none; background: #e9ebef; }
-    QWidget#pill QPushButton#play:disabled { border: none; background: #3a3e48; color: #7d8491; }
-    QWidget#pill QPushButton[class="text"] { border: none; min-width: 0; max-width: 1000px; padding: 0 12px;
-                                    font-size: 12px; font-weight: 600; background: rgba(255,255,255,13); }
-    QWidget#pill QPushButton[class="text"]:hover { border: none; background: rgba(255,255,255,32); }
-    QWidget#pill QPushButton#export { border: none; background: #f5c400; color: #111111; }
+    QWidget#pill QPushButton { background: transparent; border: 1px solid transparent; border-radius: 6px;
+                               min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px; }
+    QWidget#pill QPushButton:hover { background: #121722; border: 1px solid #00e5ff40; }
+    QWidget#pill QPushButton:pressed { background: #0d1118; border: 1px solid #00e5ff99; }
+    QWidget#pill QPushButton#play { border: 1px solid #00e5ff99; background: #0d1118;
+                                    min-width: 46px; max-width: 46px; min-height: 40px; max-height: 40px; }
+    QWidget#pill QPushButton#play:hover { border: 1px solid #00e5ff; background: #101826; }
+    QWidget#pill QPushButton#play:pressed { background: #00e5ff; }
+    QWidget#pill QPushButton#play:disabled { border: 1px solid #263038; background: #0d1118; }
+    QWidget#pill QPushButton#export { border: none; background: #f5c400; color: #111111; min-width: 0;
+                                      max-width: 1000px; padding: 0 12px 0 8px; font-size: 12px; font-weight: 700; }
     QWidget#pill QPushButton#export:hover { border: none; background: #ffd633; }
-    QWidget#pill QPushButton#export:disabled { border: none; background: #4a4425; color: #8a8047; }
-    QWidget#pill QPushButton#export_cancel { border: none; background: rgba(255,255,255,13); }
-    QWidget#pill QLabel { color: #ffffff; font-size: 12px; font-weight: 600; }
+    QWidget#pill QPushButton#export:disabled { border: none; background: #3a3620; color: #7a7040; }
+    QWidget#pill QPushButton#export_cancel { border: 1px solid #3a3e48; min-width: 0; max-width: 1000px;
+                                             padding: 0 12px; color: #dfe3ea; font-size: 12px; font-weight: 600; }
     QWidget#pill QPushButton#speed { border: none; min-width: 0; max-width: 1000px; padding: 0 8px;
-                                     font-size: 12px; font-weight: 700; color: #ffffff;
-                                     background: transparent; border-radius: 8px; }
-    QWidget#pill QPushButton#speed:hover { background: rgba(255,255,255,28); }
+                                     font-size: 12px; font-weight: 700; color: #00e5ff;
+                                     font-family: Consolas, "Cascadia Mono", monospace; border-radius: 6px; }
+    QWidget#pill QPushButton#speed:hover { background: #121722; }
     QWidget#pill QPushButton#speed::menu-indicator { image: none; width: 0; }
-    QMenu { background: #1a1c22; color: #dfe3ea; border: 1px solid #3a3e48; padding: 4px; }
-    QMenu::item { padding: 4px 18px; border-radius: 4px; }
-    QMenu::item:selected { background: #f5c400; color: #111; }
-    QWidget#pill QLabel[class="dim"] { color: #aab0bb; font-weight: 500; }
-    QWidget#pill QFrame#sep { background: rgba(255,255,255,26); max-width: 1px; min-width: 1px;
-                              min-height: 20px; max-height: 20px; }
+    QWidget#pill QLabel { color: #ffffff; font-size: 12px; font-weight: 600; }
+    QWidget#pill QLabel[class="dim"] { color: #6fb9c8; font-weight: 500;
+                                       font-family: Consolas, "Cascadia Mono", monospace; }
+    QWidget#pill QFrame#sep { background: #00e5ff33; max-width: 1px; min-width: 1px;
+                              min-height: 22px; max-height: 22px; }
+    QMenu { background: #0d1118; color: #d9f7ff; border: 1px solid #00e5ff66; padding: 4px; }
+    QMenu::item { padding: 4px 18px; border-radius: 3px; }
+    QMenu::item:selected { background: #00e5ff; color: #07070c; }
 
     /* 映像左上の数値表示 / 右上の設定 */
-    QLabel#hud { color: #cfd3da; background: rgba(11,12,15,150); border-radius: 6px;
+    QLabel#hud { color: #9defff; background: rgba(7,7,12,160); border: 1px solid #00e5ff33; border-radius: 4px;
                  padding: 4px 8px; font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; }
-    QPushButton#corner { color: #cfd3dc; background: rgba(11,12,15,150); border: none;
-                         border-radius: 14px; min-width: 28px; max-width: 28px;
-                         min-height: 28px; max-height: 28px; font-size: 14px; }
-    QPushButton#corner:hover { background: rgba(255,255,255,40); }
+    QPushButton#corner { background: rgba(7,7,12,160); border: 1px solid #00e5ff33; border-radius: 4px;
+                         min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px; }
+    QPushButton#corner:hover { border: 1px solid #00e5ff; background: #121722; }
     QPushButton#update { color: #0c0c0e; background: #ffd200; font-weight: bold;
-                         border: none; border-radius: 14px; padding: 0 10px; min-height: 28px; }
+                         border: none; border-radius: 4px; padding: 0 10px; min-height: 28px; }
 
     /* 右のクリップ管理パネル */
-    QWidget#side { background: #15181e; border-left: 1px solid #22262e; }
-    QWidget#side QLabel[class="lab"] { color: #7d8491; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+    QWidget#side { background: #0e1117; border-left: 1px solid #1b2230; }
+    QWidget#side QLabel[class="lab"] { color: #6fb9c8; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
     QWidget#side QLabel[class="range"] { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
-    QWidget#side QLabel[class="hint"] { color: #b8a24a; font-size: 11px; }
-    QWidget#clipRow { background: #1c2028; border: 1px solid #1c2028; border-radius: 6px; }
-    QWidget#clipRow:hover { border: 1px solid #3a3f4b; }
+    QWidget#side QLabel[class="hint"] { color: #f5c400; font-size: 11px; }
+    QWidget#clipRow { background: #141924; border: 1px solid #141924; border-radius: 4px; }
+    QWidget#clipRow:hover { border: 1px solid #00e5ff55; }
     QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
     QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
-    QWidget#clipRow QPushButton#rowplay { color: #dfe3ea; background: rgba(255,255,255,14); border: none;
-                                          border-radius: 11px; min-width: 22px; max-width: 22px;
-                                          min-height: 22px; max-height: 22px; font-size: 11px; }
-    QWidget#clipRow QPushButton#rowplay:hover { background: #ffffff; color: #101216; }
+    QWidget#clipRow QPushButton#rowplay { background: #0d1118; border: 1px solid #00e5ff66; border-radius: 3px;
+                                          min-width: 22px; max-width: 22px; min-height: 22px; max-height: 22px; }
+    QWidget#clipRow QPushButton#rowplay:hover { background: #00e5ff; border-color: #00e5ff; }
     QWidget#clipRow QPushButton#rowspeed { color: #f5c400; background: rgba(245,196,0,34); border: none;
-                                           border-radius: 4px; padding: 2px 0; min-width: 40px; max-width: 40px;
+                                           border-radius: 3px; padding: 2px 0; min-width: 40px; max-width: 40px;
                                            min-height: 18px; max-height: 18px; font-size: 10px; font-weight: 700;
                                            font-family: Consolas, "Cascadia Mono", monospace; }
     QWidget#clipRow QPushButton#rowspeed:hover { background: rgba(245,196,0,70); }
     QWidget#clipRow QPushButton#rowspeed::menu-indicator { image: none; width: 0; }
-    QWidget#side QPushButton { color: #dfe3ea; background: #1c2028; border: 1px solid #2a2f39;
-                               border-radius: 6px; min-height: 28px; padding: 0 10px; font-size: 12px; }
-    QWidget#side QPushButton:hover { background: #262b35; }
-    QWidget#side QPushButton:disabled { color: #5c6270; }
-    QWidget#side QPushButton#preview { background: #dfe3ea; color: #101216; border-color: #dfe3ea; font-weight: 600; }
-    QWidget#side QPushButton#preview:hover { background: #ffffff; }
-    QWidget#side QPushButton#preview[active="true"] { background: #f5c400; border-color: #f5c400; }
+    QWidget#side QPushButton { color: #d9f7ff; background: #141924; border: 1px solid #22304a;
+                               border-radius: 4px; min-height: 28px; padding: 0 10px; font-size: 12px; }
+    QWidget#side QPushButton:hover { background: #1a2233; border-color: #00e5ff66; }
+    QWidget#side QPushButton:disabled { color: #4a5563; }
+    QWidget#side QPushButton#preview { background: #0d1118; color: #00e5ff; border: 1px solid #00e5ff99; font-weight: 700; }
+    QWidget#side QPushButton#preview:hover { background: #101826; border-color: #00e5ff; }
+    QWidget#side QPushButton#preview[active="true"] { background: #00e5ff; color: #07070c; }
     QWidget#side QScrollArea { border: none; background: transparent; }
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
@@ -308,19 +305,23 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(8, 2, 8, 2)
         lay.setSpacing(4)
 
-        self.btn_open = self._pill_button("📂", tr("tip_open"), self.open_file)
-        self.btn_prev = self._pill_button("◁", tr("tip_prev"), self.prev_frame, repeat=True)
-        self.btn_play = self._pill_button("▶", tr("tip_play"), self.toggle_play)
+        self.btn_open = self._pill_button("open", tr("tip_open"), self.open_file)
+        self.btn_prev = self._pill_button("step_back", tr("tip_prev"), self.prev_frame, repeat=True)
+        self._icon_play = icons.icon("play", icons.ICON_ACCENT, icons.ICON_ACCENT, size=22)
+        self._icon_pause = icons.icon("pause", icons.ICON_ACCENT, icons.ICON_ACCENT, size=22)
+        self.btn_play = self._pill_button(None, tr("tip_play"), self.toggle_play)
         self.btn_play.setObjectName("play")
-        self.btn_next = self._pill_button("▷", tr("tip_next"), self.next_frame, repeat=True)
-        self.btn_slow = self._pill_button("▼", tr("tip_slower"), lambda: self.change_speed(-1))
+        self.btn_play.setIcon(self._icon_play)
+        self.btn_play.setIconSize(QSize(22, 22))
+        self.btn_next = self._pill_button("step_fwd", tr("tip_next"), self.next_frame, repeat=True)
+        self.btn_slow = self._pill_button("slower", tr("tip_slower"), lambda: self.change_speed(-1))
         self.lbl_speed = QPushButton("1x")           # クリックで速度を直接選ぶ
         self.lbl_speed.setObjectName("speed")
         self.lbl_speed.setToolTip(tr("tip_speed_pick"))
         self.lbl_speed.setCursor(Qt.PointingHandCursor)
         self.lbl_speed.setMinimumWidth(44)
         self.lbl_speed.clicked.connect(self._pick_speed)
-        self.btn_fast = self._pill_button("▲", tr("tip_faster"), lambda: self.change_speed(1))
+        self.btn_fast = self._pill_button("faster", tr("tip_faster"), lambda: self.change_speed(1))
         self.vol_slider = WedgeVolumeSlider()
         self.vol_slider.setToolTip(tr("tip_volume"))
         self.vol_slider.setValue(int(self.volume * 100))
@@ -329,10 +330,13 @@ class MainWindow(QMainWindow):
         self.lbl_vol.setProperty("class", "dim")
         self.lbl_vol.setMinimumWidth(34)
         self.lbl_vol.setAlignment(Qt.AlignCenter)
-        self.btn_in = self._pill_button("IN", tr("tip_in"), self.set_in, text=True)
-        self.btn_out = self._pill_button("OUT", tr("tip_out"), self.set_out, text=True)
-        self.btn_export = self._pill_button("⤓ " + tr("btn_export"), tr("btn_export"),
-                                            self.begin_export, text=True)
+        self.btn_in = self._pill_button("in", tr("tip_in"), self.set_in)
+        self.btn_out = self._pill_button("out", tr("tip_out"), self.set_out)
+        self.btn_export = self._pill_button(None, tr("btn_export"), self.begin_export, text=True)
+        self.btn_export.setText(tr("btn_export"))
+        self.btn_export.setIcon(icons.icon("export", icons.ICON_ON_YELLOW, icons.ICON_ON_YELLOW,
+                                           "#7a7040", size=18))
+        self.btn_export.setIconSize(QSize(18, 18))
         self.btn_export.setObjectName("export")
         self.btn_export_ok = self._pill_button(tr("btn_export_ok"), tr("btn_export_ok"),
                                                self.confirm_export, text=True)
@@ -362,7 +366,9 @@ class MainWindow(QMainWindow):
         self.btn_update.setVisible(False)
         self.btn_update.setToolTip(tr("tip_update"))
         self.btn_update.clicked.connect(self._open_update)
-        self.btn_settings = QPushButton("⚙", v)
+        self.btn_settings = QPushButton(v)
+        self.btn_settings.setIcon(icons.icon("gear"))
+        self.btn_settings.setIconSize(QSize(18, 18))
         self.btn_settings.setObjectName("corner")
         self.btn_settings.setToolTip(tr("tip_settings"))
         self.btn_settings.setCursor(Qt.PointingHandCursor)
@@ -391,11 +397,14 @@ class MainWindow(QMainWindow):
         f.setObjectName("sep")
         return f
 
-    def _pill_button(self, label, tooltip, slot, repeat=False, text=False):
-        b = QPushButton(label)
+    def _pill_button(self, icon_name, tooltip, slot, repeat=False, text=False):
+        b = QPushButton()
         b.setToolTip(tooltip)
         b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(slot)
+        if icon_name:
+            b.setIcon(icons.icon(icon_name))
+            b.setIconSize(QSize(20, 20))
         if text:
             b.setProperty("class", "text")
         if repeat:
@@ -449,13 +458,17 @@ class MainWindow(QMainWindow):
         self.side.mousePressEvent = lambda ev: self._deselect_clip()
         lay.addWidget(self.clip_scroll, 1)
 
-        self.btn_preview = QPushButton("▶#  " + tr("btn_preview"))
+        self.btn_preview = QPushButton(tr("btn_preview"))
+        self.btn_preview.setIcon(icons.icon("preview", icons.ICON_ACCENT, icons.ICON_ACCENT, size=16))
+        self.btn_preview.setIconSize(QSize(16, 16))
         self.btn_preview.setObjectName("preview")
         self.btn_preview.setToolTip(tr("tip_preview"))
         self.btn_preview.setCursor(Qt.PointingHandCursor)
         self.btn_preview.clicked.connect(self.toggle_preview)
         lay.addWidget(self.btn_preview)
         self.btn_clear_range = QPushButton(tr("btn_clear"))
+        self.btn_clear_range.setIcon(icons.icon("clear", size=14))
+        self.btn_clear_range.setIconSize(QSize(14, 14))
         self.btn_clear_range.setToolTip(tr("tip_clear"))
         self.btn_clear_range.setCursor(Qt.PointingHandCursor)
         self.btn_clear_range.clicked.connect(self.on_clear_clicked)
@@ -497,7 +510,9 @@ class MainWindow(QMainWindow):
         h = QHBoxLayout(row)
         h.setContentsMargins(6, 4, 6, 4)
         h.setSpacing(6)
-        play = QPushButton("▶")
+        play = QPushButton()
+        play.setIcon(icons.icon("play", icons.ICON_ACCENT, "#07070c", size=14))
+        play.setIconSize(QSize(14, 14))
         play.setObjectName("rowplay")
         play.setToolTip(tr("tip_row_play"))
         play.setCursor(Qt.PointingHandCursor)
@@ -637,10 +652,10 @@ class MainWindow(QMainWindow):
         self.btn_settings.setToolTip(tr("tip_settings"))
         self.btn_in.setToolTip(tr("tip_in"))
         self.btn_out.setToolTip(tr("tip_out"))
-        self.btn_preview.setText("▶#  " + tr("btn_preview"))
+        self.btn_preview.setText(tr("btn_preview"))
         self.btn_preview.setToolTip(tr("tip_preview"))
         self._refresh_clear_button()
-        self.btn_export.setText("⤓ " + tr("btn_export"))
+        self.btn_export.setText(tr("btn_export"))
         self.btn_export.setToolTip(tr("btn_export"))
         self._refresh_clip_panel()
         self._relayout_overlays()
@@ -912,7 +927,7 @@ class MainWindow(QMainWindow):
         if self.cur_index >= self.reader.total_frames - 1:
             self._show_frame(0)
         self.playing = True
-        self.btn_play.setText("⏸")
+        self.btn_play.setIcon(self._icon_pause)
         self._pending = None
         if self.producer:
             self.producer.start(self.cur_index)   # 先読みデコード開始
@@ -929,7 +944,7 @@ class MainWindow(QMainWindow):
         self.playing = False
         self._stop_at = None
         self.play_timer.stop()
-        self.btn_play.setText("▶")
+        self.btn_play.setIcon(self._icon_play)
         self._pending = None
         self._end_preview()           # 一時停止でプレビューも終了
         if self.producer:
