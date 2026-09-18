@@ -343,6 +343,7 @@ class MainWindow(QMainWindow):
     QWidget#clipRow QLineEdit[readOnly="true"] { color: #6f7a8a; border: 1px dashed #2a3344; }
     QWidget#clipRow QLineEdit[next="true"] { color: #f5c400; border: 1px dashed #f5c400; background: rgba(245,196,0,22);
                                              font-weight: 700; }
+    QWidget#clipRow QLineEdit[readOnly="true"]:hover { border-style: solid; background: rgba(245,196,0,40); color: #ffd84a; }
     QWidget#side QLabel[class="hint"] { color: #f5c400; font-size: 10px; font-family: Consolas, "Cascadia Mono", monospace; }
     QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
     QWidget#clipRow QLineEdit { color: #d9f7ff; background: #0d1118; border: 1px solid #22304a; border-radius: 3px;
@@ -779,6 +780,8 @@ class MainWindow(QMainWindow):
             f_in.setAlignment(Qt.AlignCenter); f_in.setFixedWidth(44)
             f_in.setProperty("next", True)               # 次に打つのはここ
             f_in.setToolTip(tr("tip_pending_in"))
+            f_in.setCursor(Qt.PointingHandCursor)
+            f_in.mousePressEvent = lambda ev: self.set_in()       # クリックで再生位置に IN
         h.addWidget(f_in)
         dash = QLabel("–"); dash.setAlignment(Qt.AlignCenter); h.addWidget(dash)
         if self.out_frame is not None:
@@ -789,6 +792,8 @@ class MainWindow(QMainWindow):
             f_out.setAlignment(Qt.AlignCenter); f_out.setFixedWidth(44)
             f_out.setProperty("next", self.in_frame is not None)   # IN 済みなら次は OUT
             f_out.setToolTip(tr("tip_pending_out"))
+            f_out.setCursor(Qt.PointingHandCursor)
+            f_out.mousePressEvent = lambda ev: self.set_out()     # クリックで再生位置に OUT
         h.addWidget(f_out)
         spd = QPushButton("1x")                       # 速度バッジの位置合わせ (まだ選べない)
         spd.setObjectName("rowspeed")
