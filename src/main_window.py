@@ -330,7 +330,7 @@ class MainWindow(QMainWindow):
                          border: none; border-radius: 4px; padding: 0 10px; min-height: 28px; }
 
     /* 右のクリップ管理パネル */
-    QWidget#side { background: #0e1117; border-left: 1px solid #1b2230; }
+    QWidget#side { background: #0e1117; border-left: 1px solid #2a3344; }
     QWidget#side QLabel[class="lab"] { color: #6fb9c8; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
     QWidget#side QLabel[class="range"] { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
     QWidget#side QLabel[class="hint"] { color: #f5c400; font-size: 11px; }
@@ -359,13 +359,10 @@ class MainWindow(QMainWindow):
     QWidget#side QPushButton#preview { background: #0d1118; color: #00e5ff; border: 1px solid #00e5ff99; font-weight: 700; }
     QWidget#side QPushButton#preview:hover { background: #101826; border-color: #00e5ff; }
     QWidget#side QPushButton#preview[active="true"] { background: #00e5ff; color: #07070c; }
-    QPushButton#sidetab { background: #0d1118; border: 1px solid #ffffff99; border-right: none;
+    QPushButton#sidetab { background: #0e1117; border: 1px solid #2a3344; border-right: none;
                           border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding: 0; }
-    QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
-    QWidget#side QPushButton#sidetab { background: #0d1118; border: 1px solid #ffffff99; border-left: none;
-                                       border-radius: 0; border-top-right-radius: 6px; border-bottom-right-radius: 6px;
-                                       min-height: 0; padding: 0; }
-    QWidget#side QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
+    QPushButton#sidetab:hover { background: #141924; border-color: #4a5670; }
+
     QWidget#side QScrollArea { border: none; background: transparent; }
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
@@ -569,16 +566,7 @@ class MainWindow(QMainWindow):
     def eventFilter(self, obj, event):
         if obj is self.video and event.type() == QEvent.Resize:
             self._relayout_overlays()
-        elif obj is self.side and event.type() == QEvent.Resize:
-            self._place_side_close()
         return super().eventFilter(obj, event)
-
-    def _place_side_close(self):
-        """開いているときの「＞」を、閉じているときのタブと同じ高さ (映像の縦中央) に置く。"""
-        gy = self.video.mapToGlobal(QPoint(0, (self.video.height() - self.side_close.height()) // 2)).y()
-        y = self.side.mapFromGlobal(QPoint(0, gy)).y()
-        self.side_close.move(0, max(0, y))
-        self.side_close.raise_()
 
     def _relayout_overlays(self):
         v = self.video
@@ -586,8 +574,7 @@ class MainWindow(QMainWindow):
         self.lbl_frame.move(12, 10)
         self.btn_settings.move(v.width() - self.btn_settings.width() - 12, 10)
         self.side_tab.move(v.width() - self.side_tab.width(), (v.height() - self.side_tab.height()) // 2)
-        if self.side.isVisible():
-            self._place_side_close()
+        self.side_tab.raise_()
         self.btn_update.adjustSize()
         self.btn_update.move(v.width() - self.btn_settings.width() - 12
                              - self.btn_update.width() - 6, 10)
@@ -598,7 +585,7 @@ class MainWindow(QMainWindow):
         self.side.setObjectName("side")
         self.side.setFixedWidth(self.SIDE_W)
         lay = QVBoxLayout(self.side)
-        lay.setContentsMargins(12 + 22, 10, 12, 12)   # 左はタブ (22px) のぶん空ける
+        lay.setContentsMargins(12, 10, 12, 12)
         lay.setSpacing(8)
 
         head = QHBoxLayout()
@@ -608,16 +595,6 @@ class MainWindow(QMainWindow):
         head.addWidget(self.lbl_clips_head)
         head.addStretch(1)
         lay.addLayout(head)
-        # 開いているときの「＞」: 閉じているときのタブと同じ位置・同じ形でパネル左端に重ねる
-        self.side_close = QPushButton(self.side)
-        self.side_close.setObjectName("sidetab")
-        self.side_close.setCursor(Qt.PointingHandCursor)
-        self.side_close.setFixedSize(22, 96)
-        self.side_close.setIcon(icons.icon("panel_close", icons.ICON_ACCENT, "#ffffff", size=18))
-        self.side_close.setIconSize(QSize(18, 18))
-        self.side_close.setToolTip(tr("tip_side_toggle"))
-        self.side_close.clicked.connect(self.toggle_side)
-        self.side.installEventFilter(self)
         self.lbl_range = QLabel("")                   # (説明は表示しない。互換のため残す)
         self.lbl_range.setVisible(False)
 
@@ -675,11 +652,12 @@ class MainWindow(QMainWindow):
 
     def _refresh_side_tab(self):
         n = len(self.segments)
-        # 閉じているとき: 映像上の「＜」(開く)。開いているとき: パネル見出しの「＞」(畳む)
-        self.side_tab.setIcon(icons.icon("panel_open", icons.ICON_ACCENT, "#ffffff", size=18))
+        # タブは常に映像の右端。開いていれば「＞」(畳む)、閉じていれば「＜」(開く)
+        self.side_tab.setIcon(icons.icon("panel_close" if self.side_open else "panel_open",
+                                         "#cfd3dc", "#ffffff", size=18))
         self.side_tab.setIconSize(QSize(18, 18))
         self.side_tab.setToolTip(tr("tip_side_toggle") + ("" if not n else f"  ({n})"))
-        self.side_tab.setVisible(self.reader is not None and not self.side_open)
+        self.side_tab.setVisible(self.reader is not None)
         self._relayout_overlays()
 
     def _refresh_clip_panel(self):
