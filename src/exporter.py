@@ -107,9 +107,15 @@ class ExportWorker(QObject):
         # 音声 (任意)
         a_out = None
         fifo = None
+        self._resampler = None
         if a_in is not None:
             try:
                 a_out = out.add_stream("aac", rate=a_in.rate)
+                # フィルタ出力を fltp/stereo/rate に必ず統一してから FIFO へ入れる
+                # (録画ソフトによってはチャンネルレイアウトが "2 channels" 等の未指定扱いで、
+                #  aformat を通しても FIFO/フェード生成フレームと一致しないことがある)
+                self._resampler = av.AudioResampler(
+                    format="fltp", layout="stereo", rate=a_in.rate)
                 fifo = av.AudioFifo()
             except Exception:
                 a_in = a_out = None
@@ -283,9 +289,11 @@ class ExportWorker(QObject):
                 break
             except (av.error.EOFError, EOFError):
                 break
-            r = self._apply_audio_fade(r)
             r.pts = None
-            fifo.write(r)
+            for u in self._resampler.resample(r):
+                u = self._apply_audio_fade(u)
+                u.pts = None
+                fifo.write(u)
         while fifo.samples >= 1024:
             chunk = fifo.read(1024)
             chunk.pts = None
