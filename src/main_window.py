@@ -6,7 +6,7 @@ import subprocess
 import time
 import queue
 
-from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal, QSize, QRectF
+from PySide6.QtCore import Qt, QTimer, QThread, QSettings, QEvent, Signal, QSize, QRectF, QPoint
 from PySide6.QtGui import (QImage, QKeySequence, QShortcut, QPainter, QPen, QCursor, QIntValidator,
                            QColor, QPainterPath, QAction, QDesktopServices)
 from PySide6.QtCore import QUrl
@@ -345,7 +345,7 @@ class MainWindow(QMainWindow):
     QWidget#clipRow QLineEdit:focus { border: 1px solid #00e5ff; }
     QWidget#clipRow QPushButton#rowplay { background: #0d1118; border: 1px solid #00e5ff66; border-radius: 3px;
                                           min-width: 22px; max-width: 22px; min-height: 22px; max-height: 22px; }
-    QWidget#clipRow QPushButton#rowplay:hover { background: #00e5ff; border-color: #00e5ff; }
+    QWidget#clipRow QPushButton#rowplay:hover { background: #121722; border-color: #00e5ff; }
     QWidget#clipRow QPushButton#rowspeed { color: #f5c400; background: rgba(245,196,0,34); border: none;
                                            border-radius: 3px; padding: 2px 0; min-width: 40px; max-width: 40px;
                                            min-height: 18px; max-height: 18px; font-size: 10px; font-weight: 700;
@@ -362,9 +362,10 @@ class MainWindow(QMainWindow):
     QPushButton#sidetab { background: #0d1118; border: 1px solid #00e5ff66; border-right: none;
                           border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding: 0; }
     QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
-    QWidget#side QPushButton#sideclose { background: transparent; border: 1px solid transparent; border-radius: 4px;
-                                         min-height: 0; padding: 0; }
-    QWidget#side QPushButton#sideclose:hover { border: 1px solid #00e5ff; background: #121722; }
+    QWidget#side QPushButton#sidetab { background: #0d1118; border: 1px solid #00e5ff66; border-left: none;
+                                       border-radius: 0; border-top-right-radius: 6px; border-bottom-right-radius: 6px;
+                                       min-height: 0; padding: 0; }
+    QWidget#side QPushButton#sidetab:hover { background: #121722; border-color: #00e5ff; }
     QWidget#side QScrollArea { border: none; background: transparent; }
     QWidget#side QScrollArea > QWidget > QWidget { background: transparent; }
     """
@@ -568,7 +569,16 @@ class MainWindow(QMainWindow):
     def eventFilter(self, obj, event):
         if obj is self.video and event.type() == QEvent.Resize:
             self._relayout_overlays()
+        elif obj is self.side and event.type() == QEvent.Resize:
+            self._place_side_close()
         return super().eventFilter(obj, event)
+
+    def _place_side_close(self):
+        """開いているときの「＞」を、閉じているときのタブと同じ高さ (映像の縦中央) に置く。"""
+        gy = self.video.mapToGlobal(QPoint(0, (self.video.height() - self.side_close.height()) // 2)).y()
+        y = self.side.mapFromGlobal(QPoint(0, gy)).y()
+        self.side_close.move(0, max(0, y))
+        self.side_close.raise_()
 
     def _relayout_overlays(self):
         v = self.video
@@ -576,6 +586,8 @@ class MainWindow(QMainWindow):
         self.lbl_frame.move(12, 10)
         self.btn_settings.move(v.width() - self.btn_settings.width() - 12, 10)
         self.side_tab.move(v.width() - self.side_tab.width(), (v.height() - self.side_tab.height()) // 2)
+        if self.side.isVisible():
+            self._place_side_close()
         self.btn_update.adjustSize()
         self.btn_update.move(v.width() - self.btn_settings.width() - 12
                              - self.btn_update.width() - 6, 10)
@@ -586,7 +598,7 @@ class MainWindow(QMainWindow):
         self.side.setObjectName("side")
         self.side.setFixedWidth(self.SIDE_W)
         lay = QVBoxLayout(self.side)
-        lay.setContentsMargins(12, 10, 12, 12)
+        lay.setContentsMargins(12 + 22, 10, 12, 12)   # 左はタブ (22px) のぶん空ける
         lay.setSpacing(8)
 
         head = QHBoxLayout()
@@ -595,16 +607,17 @@ class MainWindow(QMainWindow):
         self.lbl_clips_head.setProperty("class", "lab")
         head.addWidget(self.lbl_clips_head)
         head.addStretch(1)
-        self.side_close = QPushButton()               # 開いているときの「＞」(畳む)
-        self.side_close.setObjectName("sideclose")
+        lay.addLayout(head)
+        # 開いているときの「＞」: 閉じているときのタブと同じ位置・同じ形でパネル左端に重ねる
+        self.side_close = QPushButton(self.side)
+        self.side_close.setObjectName("sidetab")
         self.side_close.setCursor(Qt.PointingHandCursor)
-        self.side_close.setFixedSize(22, 22)
-        self.side_close.setIcon(icons.icon("panel_close", icons.ICON_ACCENT, "#ffffff", size=16))
-        self.side_close.setIconSize(QSize(16, 16))
+        self.side_close.setFixedSize(22, 96)
+        self.side_close.setIcon(icons.icon("panel_close", icons.ICON_ACCENT, "#ffffff", size=18))
+        self.side_close.setIconSize(QSize(18, 18))
         self.side_close.setToolTip(tr("tip_side_toggle"))
         self.side_close.clicked.connect(self.toggle_side)
-        head.addWidget(self.side_close)
-        lay.addLayout(head)
+        self.side.installEventFilter(self)
         self.lbl_range = QLabel("")                   # (説明は表示しない。互換のため残す)
         self.lbl_range.setVisible(False)
 
@@ -700,7 +713,7 @@ class MainWindow(QMainWindow):
         play = QPushButton()
         now_playing = self.playing and self._playing_clip == idx
         play.setIcon(icons.icon("pause" if now_playing else "play",
-                                icons.ICON_ACCENT, "#07070c", size=14))
+                                icons.ICON_ACCENT, "#ffffff", size=14))
         play.setToolTip(tr("tip_row_stop") if now_playing else tr("tip_row_play"))
         play.setIconSize(QSize(14, 14))
         play.setObjectName("rowplay")
