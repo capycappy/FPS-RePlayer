@@ -31,7 +31,7 @@ from i18n import tr
 from version import APP_NAME, APP_VERSION
 from updater import UpdateChecker, RELEASES_PAGE
 
-SPEEDS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 4.0, 8.0, 16.0]
+SPEEDS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0, 16.0]
 
 
 def ndarray_to_qimage(arr) -> QImage:
@@ -144,6 +144,7 @@ class MainWindow(QMainWindow):
         self._play_t0 = 0.0
         self._play_frame0 = 0
         self._pending = None   # 表示時刻待ちの先読みフレーム
+        self._stop_at = None   # クリップ単体再生の停止位置 (OUT)
         self.in_frame = None
         self.out_frame = None
         self.volume = float(self.settings.value("volume", 0.8, float))
@@ -170,9 +171,9 @@ class MainWindow(QMainWindow):
     QLabel { color: #cfd3dc; }
     QToolTip { color: #e6e8ee; background: #1a1c22; border: 1px solid #3a3e48; }
 
-    /* 映像の上に浮くピル型ツールバー */
-    QWidget#pill { background: rgba(26, 28, 34, 225); border: 1px solid rgba(255,255,255,22);
-                   border-radius: 23px; }
+    /* タイムライン下のツールバー (中央寄せ・固定) */
+    QWidget#bar { background: #0b0c0f; border-top: 1px solid #1b1e25; }
+    QWidget#pill { background: transparent; }
     QWidget#pill QPushButton { color: #dfe3ea; background: transparent; border: none;
                                border-radius: 17px; min-width: 34px; max-width: 34px;
                                min-height: 34px; max-height: 34px; font-size: 15px; }
@@ -192,6 +193,14 @@ class MainWindow(QMainWindow):
     QWidget#pill QPushButton#export:disabled { border: none; background: #4a4425; color: #8a8047; }
     QWidget#pill QPushButton#export_cancel { border: none; background: rgba(255,255,255,13); }
     QWidget#pill QLabel { color: #ffffff; font-size: 12px; font-weight: 600; }
+    QWidget#pill QPushButton#speed { border: none; min-width: 0; max-width: 1000px; padding: 0 8px;
+                                     font-size: 12px; font-weight: 700; color: #ffffff;
+                                     background: transparent; border-radius: 8px; }
+    QWidget#pill QPushButton#speed:hover { background: rgba(255,255,255,28); }
+    QWidget#pill QPushButton#speed::menu-indicator { image: none; width: 0; }
+    QMenu { background: #1a1c22; color: #dfe3ea; border: 1px solid #3a3e48; padding: 4px; }
+    QMenu::item { padding: 4px 18px; border-radius: 4px; }
+    QMenu::item:selected { background: #f5c400; color: #111; }
     QWidget#pill QLabel[class="dim"] { color: #aab0bb; font-weight: 500; }
     QWidget#pill QFrame#sep { background: rgba(255,255,255,26); max-width: 1px; min-width: 1px;
                               min-height: 20px; max-height: 20px; }
@@ -210,6 +219,7 @@ class MainWindow(QMainWindow):
     QWidget#side { background: #15181e; border-left: 1px solid #22262e; }
     QWidget#side QLabel[class="lab"] { color: #7d8491; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
     QWidget#side QLabel[class="range"] { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
+    QWidget#side QLabel[class="hint"] { color: #b8a24a; font-size: 11px; }
     QWidget#clipRow { background: #1c2028; border: 1px solid #1c2028; border-radius: 6px; }
     QWidget#clipRow:hover { border: 1px solid #3a3f4b; }
     QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
@@ -218,12 +228,12 @@ class MainWindow(QMainWindow):
                                           border-radius: 11px; min-width: 22px; max-width: 22px;
                                           min-height: 22px; max-height: 22px; font-size: 11px; }
     QWidget#clipRow QPushButton#rowplay:hover { background: #ffffff; color: #101216; }
-    QWidget#clipRow QComboBox { color: #f5c400; background: rgba(245,196,0,34); border: none;
-                                border-radius: 4px; padding: 1px 4px; font-size: 10px; font-weight: 700;
-                                font-family: Consolas, "Cascadia Mono", monospace; }
-    QWidget#clipRow QComboBox::drop-down { width: 0; border: none; }
-    QWidget#clipRow QComboBox QAbstractItemView { background: #1c2028; color: #dfe3ea;
-                                                  selection-background-color: #f5c400; selection-color: #111; }
+    QWidget#clipRow QPushButton#rowspeed { color: #f5c400; background: rgba(245,196,0,34); border: none;
+                                           border-radius: 4px; padding: 2px 0; min-width: 40px; max-width: 40px;
+                                           min-height: 18px; max-height: 18px; font-size: 10px; font-weight: 700;
+                                           font-family: Consolas, "Cascadia Mono", monospace; }
+    QWidget#clipRow QPushButton#rowspeed:hover { background: rgba(245,196,0,70); }
+    QWidget#clipRow QPushButton#rowspeed::menu-indicator { image: none; width: 0; }
     QWidget#side QPushButton { color: #dfe3ea; background: #1c2028; border: 1px solid #2a2f39;
                                border-radius: 6px; min-height: 28px; padding: 0 10px; font-size: 12px; }
     QWidget#side QPushButton:hover { background: #262b35; }
@@ -270,23 +280,32 @@ class MainWindow(QMainWindow):
             bar.dragFinished.connect(self._on_seg_drag_finished)
             tl_box.addWidget(bar)
         root.addLayout(tl_box)
-        outer.addWidget(left, 1)
 
         self._build_overlays()
+        self._build_toolbar()
+        root.addWidget(self.bar)
+        outer.addWidget(left, 1)
+
         self._build_sidebar()
         outer.addWidget(self.side)
 
         self.setCentralWidget(central)
         self._set_controls_enabled(False)
 
-    # --- 映像の上のオーバーレイ (ピル型ツールバー / 数値表示 / 設定) ----------
-    def _build_overlays(self):
-        v = self.video
-        self.pill = QWidget(v)
+    # --- タイムライン下のツールバー (中央寄せ) -----------------------------
+    def _build_toolbar(self):
+        self.bar = QWidget()
+        self.bar.setObjectName("bar")
+        self.bar.setAttribute(Qt.WA_StyledBackground, True)
+        outer = QHBoxLayout(self.bar)
+        outer.setContentsMargins(0, 6, 0, 4)
+        self.pill = QWidget()
         self.pill.setObjectName("pill")
-        self.pill.setAttribute(Qt.WA_StyledBackground, True)
+        outer.addStretch(1)
+        outer.addWidget(self.pill)
+        outer.addStretch(1)
         lay = QHBoxLayout(self.pill)
-        lay.setContentsMargins(8, 6, 8, 6)
+        lay.setContentsMargins(8, 2, 8, 2)
         lay.setSpacing(4)
 
         self.btn_open = self._pill_button("📂", tr("tip_open"), self.open_file)
@@ -295,9 +314,12 @@ class MainWindow(QMainWindow):
         self.btn_play.setObjectName("play")
         self.btn_next = self._pill_button("▷", tr("tip_next"), self.next_frame, repeat=True)
         self.btn_slow = self._pill_button("▼", tr("tip_slower"), lambda: self.change_speed(-1))
-        self.lbl_speed = QLabel("1.0x")
-        self.lbl_speed.setMinimumWidth(38)
-        self.lbl_speed.setAlignment(Qt.AlignCenter)
+        self.lbl_speed = QPushButton("1x")           # クリックで速度を直接選ぶ
+        self.lbl_speed.setObjectName("speed")
+        self.lbl_speed.setToolTip(tr("tip_speed_pick"))
+        self.lbl_speed.setCursor(Qt.PointingHandCursor)
+        self.lbl_speed.setMinimumWidth(44)
+        self.lbl_speed.clicked.connect(self._pick_speed)
         self.btn_fast = self._pill_button("▲", tr("tip_faster"), lambda: self.change_speed(1))
         self.vol_slider = WedgeVolumeSlider()
         self.vol_slider.setToolTip(tr("tip_volume"))
@@ -328,6 +350,9 @@ class MainWindow(QMainWindow):
                   self._sep(), self.btn_export, self.btn_export_ok, self.btn_export_cancel):
             lay.addWidget(w)
 
+    # --- 映像の上のオーバーレイ (数値表示 / 設定) --------------------------
+    def _build_overlays(self):
+        v = self.video
         # 左上: フレーム/時刻/fps/拡大率  右上: 更新通知 + 設定
         self.lbl_frame = QLabel("- / -", v)
         self.lbl_frame.setObjectName("hud")
@@ -342,9 +367,24 @@ class MainWindow(QMainWindow):
         self.btn_settings.setToolTip(tr("tip_settings"))
         self.btn_settings.setCursor(Qt.PointingHandCursor)
         self.btn_settings.clicked.connect(self._open_shortcuts)
-        for w in (self.lbl_frame, self.btn_update, self.btn_settings, self.pill):
+        for w in (self.lbl_frame, self.btn_update, self.btn_settings):
             w.raise_()
         v.installEventFilter(self)
+
+    def _pick_speed(self):
+        """再生速度をメニューから直接選ぶ。"""
+        menu = QMenu(self)
+        for i, s in enumerate(SPEEDS):
+            act = menu.addAction(f"{s:g}x")
+            act.setData(i)
+        act = menu.exec(self.lbl_speed.mapToGlobal(self.lbl_speed.rect().topLeft()))
+        if act is not None:
+            self.speed_idx = act.data()
+            self._update_labels()
+            if self.playing:
+                self._rebase_clock()
+                self._restart_timer()
+                self._sync_audio()
 
     def _sep(self):
         f = QFrame(self.pill)
@@ -371,9 +411,6 @@ class MainWindow(QMainWindow):
 
     def _relayout_overlays(self):
         v = self.video
-        self.pill.adjustSize()
-        pw, ph = self.pill.width(), self.pill.height()
-        self.pill.move(max(0, (v.width() - pw) // 2), max(0, v.height() - ph - 14))
         self.lbl_frame.adjustSize()
         self.lbl_frame.move(12, 10)
         self.btn_settings.move(v.width() - self.btn_settings.width() - 12, 10)
@@ -395,6 +432,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.lbl_clips_head)
         self.lbl_range = QLabel("")
         self.lbl_range.setProperty("class", "range")
+        self.lbl_range.setWordWrap(True)
         lay.addWidget(self.lbl_range)
 
         self.clip_scroll = QScrollArea()
@@ -406,6 +444,9 @@ class MainWindow(QMainWindow):
         self.clip_list_lay.setSpacing(4)
         self.clip_list_lay.addStretch(1)
         self.clip_scroll.setWidget(self.clip_list)
+        # 何もない所をクリック → 選択解除 (新しいクリップを作れるように)
+        self.clip_list.mousePressEvent = lambda ev: self._deselect_clip()
+        self.side.mousePressEvent = lambda ev: self._deselect_clip()
         lay.addWidget(self.clip_scroll, 1)
 
         self.btn_preview = QPushButton("▶#  " + tr("btn_preview"))
@@ -464,17 +505,28 @@ class MainWindow(QMainWindow):
         h.addWidget(play)
         lbl = QLabel(f"#{idx + 1}  {a}–{b}")
         h.addWidget(lbl, 1)
-        cb = QComboBox()
-        cb.setToolTip(tr("tip_row_speed"))
-        for s in EXPORT_SPEEDS:
-            cb.addItem(f"{s:g}x", s)
-        cb.setCurrentIndex(min(range(len(EXPORT_SPEEDS)),
-                               key=lambda k: abs(EXPORT_SPEEDS[k] - sp)))
-        cb.currentIndexChanged.connect(
-            lambda k, i=idx: self._set_clip_speed(i, EXPORT_SPEEDS[k]))
-        h.addWidget(cb)
+        spd = QPushButton(f"{sp:g}x")
+        spd.setObjectName("rowspeed")
+        spd.setToolTip(tr("tip_row_speed"))
+        spd.setCursor(Qt.PointingHandCursor)
+        spd.clicked.connect(lambda _=False, i=idx, b=spd: self._pick_clip_speed(i, b))
+        h.addWidget(spd)
         row.mousePressEvent = lambda ev, i=idx: self._select_clip(i)
         return row
+
+    def _pick_clip_speed(self, idx, button):
+        menu = QMenu(self)
+        for s in EXPORT_SPEEDS:
+            act = menu.addAction(f"{s:g}x")
+            act.setData(s)
+        act = menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+        if act is not None:
+            self._set_clip_speed(idx, act.data())
+
+    def _deselect_clip(self):
+        if self.selected_clip is not None:
+            self.selected_clip = None
+            self._update_marks()
 
     def _select_clip(self, idx):
         """行クリックで選択 (IN/OUT がそのクリップの修正になる)。もう一度で解除。"""
@@ -489,6 +541,7 @@ class MainWindow(QMainWindow):
         self.in_frame = None
         self.out_frame = None
         self._update_marks()
+        self._stop_at = self.segments[idx][1]      # OUT で止める
         self._jump_play(self.segments[idx][0])
 
     def _set_clip_speed(self, idx, speed):
@@ -496,7 +549,7 @@ class MainWindow(QMainWindow):
             return
         a, b, _ = self.segments[idx]
         self.segments[idx] = (a, b, float(speed))
-        QTimer.singleShot(0, self._update_marks)   # コンボ自身を作り直すので次のイベントで
+        self._update_marks()
 
     # --- 入力割り当て ----------------------------------------------------
     def _apply_bindings(self):
@@ -822,8 +875,12 @@ class MainWindow(QMainWindow):
 
     def _update_range_label(self):
         if self.selected_clip is not None:
+            self.lbl_range.setProperty("class", "hint")
             self.lbl_range.setText(tr("lbl_editing").replace("{n}", str(self.selected_clip + 1)))
+            self.lbl_range.style().unpolish(self.lbl_range); self.lbl_range.style().polish(self.lbl_range)
             return
+        self.lbl_range.setProperty("class", "range")
+        self.lbl_range.style().unpolish(self.lbl_range); self.lbl_range.style().polish(self.lbl_range)
         if self.in_frame is None and self.out_frame is None:
             self.lbl_range.setText("")
             return
@@ -870,6 +927,7 @@ class MainWindow(QMainWindow):
 
     def _pause(self):
         self.playing = False
+        self._stop_at = None
         self.play_timer.stop()
         self.btn_play.setText("▶")
         self._pending = None
@@ -920,6 +978,14 @@ class MainWindow(QMainWindow):
             elapsed = time.perf_counter() - self._play_t0
             target = self._play_frame0 + round(
                 elapsed * self.reader.fps * SPEEDS[self.speed_idx])
+
+        # クリップ単体再生: OUT に達したら止める
+        if self._stop_at is not None and target >= self._stop_at:
+            stop = self._stop_at
+            self._stop_at = None
+            self._show_frame(stop)
+            self._pause()
+            return
 
         # プレビュー再生: 現在クリップの終端を超えたら次のクリップへジャンプ
         if self.preview_segs is not None:
@@ -990,6 +1056,7 @@ class MainWindow(QMainWindow):
 
     def _on_seek(self, value: int):
         self._end_preview()                  # 手動シークでプレビューは解除
+        self._stop_at = None
         self._show_frame(value)
         if self.playing:
             self._pending = None
@@ -1202,11 +1269,13 @@ class MainWindow(QMainWindow):
         self._update_marks()
 
     def _jump_play(self, frame: int):
+        stop_at = self._stop_at
         if self.playing:
             self._on_seek(frame)
         else:
             self._show_frame(frame)
             self._play()
+        self._stop_at = stop_at        # _on_seek/_pause で消えた停止位置を戻す
 
     def _restore_clips(self, path: str, maxframe: int):
         """保存済みの IN/OUT・クリップがあれば復元 (フレーム範囲にクランプ)。"""
