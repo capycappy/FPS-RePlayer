@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
     QLabel, QFileDialog, QMessageBox, QDialog, QComboBox, QCheckBox,
     QDialogButtonBox, QFormLayout, QProgressDialog, QMenu, QGridLayout,
-    QScrollArea, QFrame,
+    QScrollArea, QFrame, QSizePolicy,
 )
 
 from reader import VideoReader
@@ -341,6 +341,8 @@ class MainWindow(QMainWindow):
     QWidget#clipRow[selected="true"] { background: #2a2712; border: 1px solid #f5c400; }
     QWidget#clipRow[pending="true"] { background: #101520; border: 1px dashed #f5c40099; }
     QWidget#clipRow QLineEdit[readOnly="true"] { color: #6f7a8a; border: 1px dashed #2a3344; }
+    QWidget#clipRow QLineEdit[next="true"] { color: #f5c400; border: 1px dashed #f5c400; background: rgba(245,196,0,22);
+                                             font-weight: 700; }
     QWidget#side QLabel[class="hint"] { color: #f5c400; font-size: 10px; font-family: Consolas, "Cascadia Mono", monospace; }
     QWidget#clipRow QLabel { color: #c9ceda; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
     QWidget#clipRow QLineEdit { color: #d9f7ff; background: #0d1118; border: 1px solid #22304a; border-radius: 3px;
@@ -775,6 +777,8 @@ class MainWindow(QMainWindow):
         else:
             f_in = QLineEdit(); f_in.setPlaceholderText("IN"); f_in.setReadOnly(True)
             f_in.setAlignment(Qt.AlignCenter); f_in.setFixedWidth(44)
+            f_in.setProperty("next", True)               # 次に打つのはここ
+            f_in.setToolTip(tr("tip_pending_in"))
         h.addWidget(f_in)
         dash = QLabel("–"); dash.setAlignment(Qt.AlignCenter); h.addWidget(dash)
         if self.out_frame is not None:
@@ -783,6 +787,7 @@ class MainWindow(QMainWindow):
         else:
             f_out = QLineEdit(); f_out.setPlaceholderText("OUT"); f_out.setReadOnly(True)
             f_out.setAlignment(Qt.AlignCenter); f_out.setFixedWidth(44)
+            f_out.setProperty("next", self.in_frame is not None)   # IN 済みなら次は OUT
             f_out.setToolTip(tr("tip_pending_out"))
         h.addWidget(f_out)
         spd = QPushButton("1x")                       # 速度バッジの位置合わせ (まだ選べない)
@@ -803,7 +808,10 @@ class MainWindow(QMainWindow):
             hint_key = "lbl_pending_hint_in"
         hint = QLabel(tr(hint_key))
         hint.setProperty("class", "hint")
-        hint.setAlignment(Qt.AlignRight)
+        hint.setWordWrap(True)
+        hint.setMinimumWidth(0)
+        hint.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        hint.setAlignment(Qt.AlignLeft)
         v.addWidget(hint)
         box.setProperty("pending", True)
         return box
