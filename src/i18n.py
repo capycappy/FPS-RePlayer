@@ -54,6 +54,8 @@ T = {
                      "ja": "新しいバージョンがあります — クリックでダウンロードページを開く"},
     "chk_updates":  {"en": "Check for updates on startup",
                      "ja": "起動時にアップデートを確認する"},
+    "chk_watermark": {"en": "Add a \"Made with FPSReplayer\" watermark to exported videos (bottom right)",
+                      "ja": "書き出した動画の右下に「Made with FPSReplayer」の透かしを入れる"},
     "tip_in":       {"en": "Set In point",         "ja": "IN点を設定"},
     "tip_out":      {"en": "Set Out point",        "ja": "OUT点を設定"},
     "tip_add_clip": {"en": "Deselect the clip (In/Out then create new clips). "

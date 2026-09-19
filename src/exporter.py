@@ -17,6 +17,7 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 FADE_SEC = 0.3   # トランジション(フェード)の長さ
+WATERMARK_TEXT = "Made with FPSReplayer"
 
 # クリップごとに選べる書き出し速度
 EXPORT_SPEEDS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0, 16.0]
@@ -47,8 +48,10 @@ class ExportWorker(QObject):
 
     def __init__(self, src, dst, crop, segments,
                  out_w=1080, out_h=1920, include_audio=True,
-                 transition=False):
+                 transition=False, watermark=True):
         super().__init__()
+        self.watermark = watermark
+        self._wm = None             # (y0, x0, 文字のアルファ, 影のアルファ) 出力サイズに合わせて一度だけ作る
         self.src = src
         self.dst = dst
         self.crop = crop            # (x, y, w, h) ソース座標
@@ -243,11 +246,79 @@ class ExportWorker(QObject):
                 break
             except (av.error.EOFError, EOFError):
                 break
+            if self.watermark:
+                f = self._apply_watermark(f)
             f.pts = self._vcount
             f.time_base = self._v_tb
             self._vcount += 1
             for pkt in v_out.encode(f):
                 out.mux(pkt)
+
+    # ------------------------------------------------------------------
+    def _build_watermark(self):
+        """右下に入れる透かしのアルファマスクを作る (半透明の白文字 + 薄い影)。"""
+        from PySide6.QtGui import QImage, QPainter, QFont, QColor
+        from PySide6.QtCore import Qt, QRect
+        size = max(12, int(round(min(self.out_w, self.out_h) * 0.030)))   # 1080 幅で約 32px
+        font = QFont("Segoe UI")
+        font.setPixelSize(size)
+        font.setWeight(QFont.DemiBold)
+        probe = QImage(8, 8, QImage.Format_Grayscale8)
+        p = QPainter(probe); p.setFont(font)
+        br = p.fontMetrics().boundingRect(WATERMARK_TEXT); p.end()
+        pad = 4
+        w, h = br.width() + pad * 2 + 4, br.height() + pad * 2 + 4
+        img = QImage(w, h, QImage.Format_Grayscale8)
+        img.fill(0)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.TextAntialiasing, True)
+        p.setFont(font); p.setPen(QColor(255, 255, 255))
+        p.drawText(QRect(pad, pad, br.width() + 4, br.height()), Qt.AlignLeft | Qt.AlignVCenter, WATERMARK_TEXT)
+        p.end()
+        ptr = img.constBits()
+        mask = np.frombuffer(ptr, dtype=np.uint8, count=img.sizeInBytes()).reshape(h, img.bytesPerLine())[:, :w]
+        text_a = mask.astype(np.float32) / 255.0
+        # 影: 1〜2px ずらして軽くぼかす
+        off = max(1, size // 16)
+        sh = np.zeros_like(text_a)
+        sh[off:, off:] = text_a[:-off, :-off]
+        for _ in range(2):                       # 3x3 の箱ぼかしを 2 回
+            padded = np.pad(sh, 1, mode="edge")
+            sh = sum(padded[dy:dy + h, dx:dx + w] for dy in range(3) for dx in range(3)) / 9.0
+        margin = int(round(size * 0.9))
+        x0 = max(0, self.out_w - w - margin)
+        y0 = max(0, self.out_h - h - margin)
+        x0 -= x0 % 2; y0 -= y0 % 2               # 色差 (4:2:0) と位置を合わせる
+        w2, h2 = w - (w % 2), h - (h % 2)
+        return (y0, x0, text_a[:h2, :w2] * 0.62, sh[:h2, :w2] * 0.45)
+
+    def _apply_watermark(self, frame):
+        """yuv420p のフレームに透かしを合成する (右下の小領域だけを書き換える)。"""
+        if self._wm is None:
+            try:
+                self._wm = self._build_watermark()
+            except Exception:
+                self.watermark = False
+                return frame
+        y0, x0, ta, sa = self._wm
+        h, w = ta.shape
+        H, W = self.out_h, self.out_w
+        if y0 + h > H or x0 + w > W:
+            return frame
+        arr = frame.to_ndarray()                 # (H*3/2, W) : Y, U, V
+        Y = arr[:H]
+        reg = Y[y0:y0 + h, x0:x0 + w].astype(np.float32)
+        reg = reg * (1.0 - sa) + 16.0 * sa        # 影 (暗く)
+        reg = reg * (1.0 - ta) + 235.0 * ta       # 文字 (白)
+        Y[y0:y0 + h, x0:x0 + w] = np.clip(reg, 0, 255).astype(np.uint8)
+        if H % 4 == 0 and W % 2 == 0:             # 文字が下の色に染まらないよう色差を中立 (128) へ寄せる
+            a2 = np.maximum(ta, sa).reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
+            for plane_off in (H, H + H // 4):
+                C = arr[plane_off:plane_off + H // 4].reshape(H // 2, W // 2)
+                cr = C[y0 // 2:y0 // 2 + h // 2, x0 // 2:x0 // 2 + w // 2].astype(np.float32)
+                C[y0 // 2:y0 // 2 + h // 2, x0 // 2:x0 // 2 + w // 2] = np.clip(cr * (1 - a2) + 128.0 * a2, 0, 255).astype(np.uint8)
+        nf = av.VideoFrame.from_ndarray(arr, format="yuv420p")
+        return nf
 
     # ------------------------------------------------------------------
     def _build_audio_graph(self, frame):

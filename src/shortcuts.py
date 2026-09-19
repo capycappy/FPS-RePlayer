@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QDialog, QGridLayout, QLabel, QComboBox, QKeySequenceEdit,
-    QDialogButtonBox, QPushButton, QFrame, QCheckBox,
+    QDialogButtonBox, QPushButton, QFrame, QCheckBox, QWidget, QVBoxLayout,
 )
 
 from i18n import tr
@@ -76,7 +76,7 @@ class ShortcutDialog(QDialog):
     """言語選択 + アクションごとのキー/マウス割り当て設定ダイアログ。"""
 
     def __init__(self, parent, config: InputConfig, lang_pref: str = "auto",
-                 check_updates: bool = True):
+                 check_updates: bool = True, watermark: bool = True):
         super().__init__(parent)
         self.setWindowTitle(tr("settings_title"))
         self.config = config
@@ -96,7 +96,16 @@ class ShortcutDialog(QDialog):
         # アップデート確認
         self.chk_updates = QCheckBox(tr("chk_updates"))
         self.chk_updates.setChecked(check_updates)
-        grid.addWidget(self.chk_updates, 1, 0, 1, 3)
+        # 書き出し動画の透かし (既定 ON)
+        self.chk_watermark = QCheckBox(tr("chk_watermark"))
+        self.chk_watermark.setChecked(watermark)
+        opts = QWidget()
+        ol = QVBoxLayout(opts)
+        ol.setContentsMargins(0, 0, 0, 0)
+        ol.setSpacing(4)
+        ol.addWidget(self.chk_updates)
+        ol.addWidget(self.chk_watermark)
+        grid.addWidget(opts, 1, 0, 1, 3)
 
         line0 = QFrame()
         line0.setFrameShape(QFrame.HLine)

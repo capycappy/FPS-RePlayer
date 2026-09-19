@@ -1,4 +1,4 @@
-# FPS RePlayer  (v2.0.0)
+# FPS RePlayer  (v2.1.0)
 
 English | [日本語](README.ja.md)
 
@@ -104,6 +104,9 @@ All clips are concatenated in chronological order into one clean video
 **fade transition** at clip boundaries. The dialog shows the output length and an
 estimated size range, a live size projection is shown while exporting, and Explorer
 opens on the output file when finished.
+
+**Watermark:** exported videos get a small semi-transparent *Made with FPSReplayer* mark in the
+bottom-right corner. It is on by default and can be turned off in ⚙ Settings.
 
 **Per-clip speed:** every clip has its own speed (0.1× – 16×, set in the CLIPS panel), so
 one video can mix a slow-motion kill and a fast-forwarded approach. Audio is stretched

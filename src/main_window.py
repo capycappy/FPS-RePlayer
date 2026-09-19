@@ -966,11 +966,13 @@ class MainWindow(QMainWindow):
 
     def _open_shortcuts(self):
         cur_updates = self.settings.value("check_updates", True, bool)
-        dlg = ShortcutDialog(self, self.input_cfg, self.lang_pref, cur_updates)
+        cur_wm = self.settings.value("watermark", True, bool)
+        dlg = ShortcutDialog(self, self.input_cfg, self.lang_pref, cur_updates, cur_wm)
         if dlg.exec() == QDialog.Accepted:
             self.input_cfg.save(self.settings)
             self._apply_bindings()
             self.settings.setValue("check_updates", dlg.chk_updates.isChecked())
+            self.settings.setValue("watermark", dlg.chk_watermark.isChecked())
             if dlg.lang_pref != self.lang_pref:
                 self.lang_pref = dlg.lang_pref
                 self.settings.setValue("language", self.lang_pref)
@@ -1782,7 +1784,8 @@ class MainWindow(QMainWindow):
 
         self.thread = QThread()
         self.worker = ExportWorker(self.reader.path, dst, crop, time_segs,
-                                   out_w, out_h, audio, transition)
+                                   out_w, out_h, audio, transition,
+                                   watermark=self.settings.value("watermark", True, bool))
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
 
